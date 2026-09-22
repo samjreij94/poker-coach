@@ -64,7 +64,13 @@ export type Grade = 'Good' | 'OK' | 'Leak';
 export interface CoachAdvice {
   recommended: ActionType;
   sizeRange?: { min: number; max: number; label: string };
+  /** One-line headline for the strip / splash */
   reason: string;
+  /**
+   * Short plain-English lesson bullets for the learner (max ~5).
+   * Graphics may show under `reason`; always populated by recommend().
+   */
+  details?: string[];
   concepts: string[];
   handClass: HandClass;
   position: Position;

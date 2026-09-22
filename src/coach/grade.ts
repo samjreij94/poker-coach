@@ -13,6 +13,23 @@ function asInternal(advice: CoachAdvice): CoachAdviceInternal {
   return advice as CoachAdviceInternal;
 }
 
+/** One-sentence grade copy that still teaches the same lesson as advice.reason. */
+function lessonWhy(advice: CoachAdvice, base: string): string {
+  const lesson = advice.reason?.trim();
+  if (!lesson) return base;
+  if (base === COACH_STRINGS.GEN_LEAK_DEFAULT) {
+    return `Prefer ${advice.recommended} — ${lesson}`;
+  }
+  if (base === COACH_STRINGS.GEN_ALT_LINE_OK) {
+    return `Playable, but the main lesson: ${lesson}`;
+  }
+  if (base === COACH_STRINGS.GEN_GOOD_DEFAULT) {
+    return lesson;
+  }
+  // Specific leak/good strings already teach; keep them.
+  return base;
+}
+
 function actionsCompatible(user: ActionType, recommended: ActionType): boolean {
   if (user === recommended) return true;
   if (
@@ -83,7 +100,7 @@ export function gradeAction(
   ) {
     return {
       grade: 'Leak',
-      why: COACH_STRINGS.PF_LIMP_RFI,
+      why: lessonWhy(advice, COACH_STRINGS.PF_LIMP_RFI),
       advice: {
         ...advice,
         recommended: 'raise',
@@ -102,7 +119,7 @@ export function gradeAction(
   ) {
     return {
       grade: 'Leak',
-      why: COACH_STRINGS.PF_OPEN_TOO_LOOSE,
+      why: lessonWhy(advice, COACH_STRINGS.PF_OPEN_TOO_LOOSE),
       advice,
     };
   }
@@ -116,7 +133,7 @@ export function gradeAction(
   ) {
     return {
       grade: 'Leak',
-      why: COACH_STRINGS.PF_FOLD_OPEN_LEAK,
+      why: lessonWhy(advice, COACH_STRINGS.PF_FOLD_OPEN_LEAK),
       advice,
     };
   }
@@ -130,7 +147,7 @@ export function gradeAction(
   ) {
     return {
       grade: 'Leak',
-      why: COACH_STRINGS.RV_MISS_VALUE_LEAK,
+      why: lessonWhy(advice, COACH_STRINGS.RV_MISS_VALUE_LEAK),
       advice,
     };
   }
@@ -146,7 +163,7 @@ export function gradeAction(
     if (putInAmount > mid * 2.2 || putInAmount > advice.sizeRange.max * 2) {
       return {
         grade: 'Leak',
-        why: COACH_STRINGS.FL_CBET_AIR_OVERBET_LEAK,
+        why: lessonWhy(advice, COACH_STRINGS.FL_CBET_AIR_OVERBET_LEAK),
         advice,
       };
     }
@@ -168,7 +185,7 @@ export function gradeAction(
     if (frac !== undefined && frac >= 0.9) {
       return {
         grade: 'Leak',
-        why: COACH_STRINGS.FL_CBET_AIR_OVERBET_LEAK,
+        why: lessonWhy(advice, COACH_STRINGS.FL_CBET_AIR_OVERBET_LEAK),
         advice,
       };
     }
@@ -183,7 +200,7 @@ export function gradeAction(
   ) {
     return {
       grade: 'Leak',
-      why: COACH_STRINGS.SPR_HIGH_LIGHT_CALL_LEAK,
+      why: lessonWhy(advice, COACH_STRINGS.SPR_HIGH_LIGHT_CALL_LEAK),
       advice,
     };
   }
@@ -196,7 +213,7 @@ export function gradeAction(
   ) {
     return {
       grade: 'Leak',
-      why: COACH_STRINGS[code],
+      why: lessonWhy(advice, COACH_STRINGS[code]),
       advice,
     };
   }
@@ -215,19 +232,19 @@ export function gradeAction(
     grade = 'Good';
     whyCode = code.endsWith('_GOOD') || code === 'GEN_GOOD_DEFAULT' ? code : 'GEN_GOOD_DEFAULT';
     // Prefer advice reason when Good match
-    return { grade, why: advice.reason || whyFor(whyCode), advice };
+    return { grade, why: lessonWhy(advice, advice.reason || whyFor(whyCode)), advice };
   }
 
   if (match && sizing === 'near') {
-    return { grade: 'OK', why: COACH_STRINGS.GEN_SIZE_OFF_OK, advice };
+    return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_SIZE_OFF_OK), advice };
   }
 
   if (match && sizing === 'far') {
     // Wild size with air already handled; nuts min-bet → OK/Leak
     if (advice.handClass === 'air') {
-      return { grade: 'Leak', why: COACH_STRINGS.FL_CBET_AIR_OVERBET_LEAK, advice };
+      return { grade: 'Leak', why: lessonWhy(advice, COACH_STRINGS.FL_CBET_AIR_OVERBET_LEAK), advice };
     }
-    return { grade: 'OK', why: COACH_STRINGS.GEN_SIZE_OFF_OK, advice };
+    return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_SIZE_OFF_OK), advice };
   }
 
   // Alternates
@@ -237,7 +254,7 @@ export function gradeAction(
     advice.handClass === 'air' &&
     boardTags.includes('dry')
   ) {
-    return { grade: 'OK', why: COACH_STRINGS.GEN_ALT_LINE_OK, advice };
+    return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_ALT_LINE_OK), advice };
   }
 
   if (
@@ -247,9 +264,9 @@ export function gradeAction(
   ) {
     // A1 ex.13: oversized/auto c-bet on monotone with strongMade → OK (prefer check)
     if (advice.handClass === 'strongMade' || advice.handClass === 'nuts') {
-      return { grade: 'OK', why: COACH_STRINGS.FL_CBET_MONO_LEAK, advice };
+      return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.FL_CBET_MONO_LEAK), advice };
     }
-    return { grade: 'Leak', why: COACH_STRINGS.FL_CBET_MONO_LEAK, advice };
+    return { grade: 'Leak', why: lessonWhy(advice, COACH_STRINGS.FL_CBET_MONO_LEAK), advice };
   }
 
   // A1 ex.5: SB flats when 3-bet preferred → OK with SB-flat copy
@@ -262,7 +279,7 @@ export function gradeAction(
       code === 'PF_3BET_VALUE_GOOD' ||
       advice.concepts.includes('3bet'))
   ) {
-    return { grade: 'OK', why: COACH_STRINGS.PF_FLAT_SB_OK, advice };
+    return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.PF_FLAT_SB_OK), advice };
   }
 
   // A1 ex.17: calling a strong draw when XR is primary → still Good (odds continue)
@@ -272,7 +289,7 @@ export function gradeAction(
     taken === 'call' &&
     advice.handClass === 'strongDraw'
   ) {
-    return { grade: 'Good', why: COACH_STRINGS.FL_CALL_ODDS_GOOD, advice };
+    return { grade: 'Good', why: lessonWhy(advice, COACH_STRINGS.FL_CALL_ODDS_GOOD), advice };
   }
 
   if (!match && advice.recommended === 'fold' && (taken === 'call' || taken === 'raise' || taken === 'bet' || taken === 'allin')) {
@@ -289,7 +306,7 @@ export function gradeAction(
     }
     return {
       grade: 'Leak',
-      why,
+      why: lessonWhy(advice, why),
       advice,
     };
   }
@@ -298,34 +315,36 @@ export function gradeAction(
     return {
       grade:
         advice.handClass === 'nuts' || advice.handClass === 'strongMade' ? 'Leak' : 'OK',
-      why:
+      why: lessonWhy(
+        advice,
         advice.handClass === 'nuts' || advice.handClass === 'strongMade'
           ? COACH_STRINGS.FL_FOLD_VALUE_LEAK
           : COACH_STRINGS.GEN_ALT_LINE_OK,
+      ),
       advice,
     };
   }
 
   if (!match && recN === 'passive' && tookN === 'aggressive') {
     if (advice.handClass === 'air') {
-      return { grade: 'OK', why: COACH_STRINGS.GEN_ALT_LINE_OK, advice };
+      return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_ALT_LINE_OK), advice };
     }
-    return { grade: 'OK', why: COACH_STRINGS.GEN_ALT_LINE_OK, advice };
+    return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_ALT_LINE_OK), advice };
   }
 
   if (!match && recN === 'aggressive' && tookN === 'passive') {
     if (advice.handClass === 'nuts' || advice.handClass === 'strongMade') {
       if (street === 'river') {
-        return { grade: 'Leak', why: COACH_STRINGS.RV_MISS_VALUE_LEAK, advice };
+        return { grade: 'Leak', why: lessonWhy(advice, COACH_STRINGS.RV_MISS_VALUE_LEAK), advice };
       }
-      return { grade: 'OK', why: COACH_STRINGS.GEN_ALT_LINE_OK, advice };
+      return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_ALT_LINE_OK), advice };
     }
-    return { grade: 'OK', why: COACH_STRINGS.GEN_ALT_LINE_OK, advice };
+    return { grade: 'OK', why: lessonWhy(advice, COACH_STRINGS.GEN_ALT_LINE_OK), advice };
   }
 
   return {
     grade: 'Leak',
-    why: COACH_STRINGS.GEN_LEAK_DEFAULT,
+    why: lessonWhy(advice, COACH_STRINGS.GEN_LEAK_DEFAULT),
     advice,
   };
 }

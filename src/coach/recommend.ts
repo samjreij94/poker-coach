@@ -86,6 +86,109 @@ function chipSizeFromPot(
   };
 }
 
+const HAND_CLASS_PLAIN: Record<HandClass, string> = {
+  air: 'air',
+  weakDraw: 'a weak draw',
+  strongDraw: 'a strong draw',
+  weakMade: 'a weak made hand',
+  strongMade: 'a strong made hand',
+  nuts: 'the nuts (or near-nuts)',
+};
+
+function sprImplication(band: SprBand): string {
+  if (band === 'low') return 'commit readily with strong hands — the pot is large vs stacks';
+  if (band === 'mid') return 'build carefully; sets and strong draws thrive here';
+  return 'stacks are deep — one weak pair rarely wants to call off huge';
+}
+
+/** Why recommended action beats the main alternative in this spot (educational). */
+function actionLessonBullet(
+  recommended: ActionType,
+  reasonCode: ReasonCode,
+  concepts: string[],
+): string {
+  const c = concepts.join(' ').toLowerCase();
+  if (recommended === 'fold') {
+    if (reasonCode === 'PF_3BET_OR_FOLD' || c.includes('3bet-or-fold')) {
+      return 'Folding beats flatting here — calling OOP invites squeezes and tough multiway pots.';
+    }
+    if (reasonCode.includes('ODDS') || c.includes('pot-odds')) {
+      return 'Folding beats calling — you are not getting a good enough price on your equity.';
+    }
+    if (reasonCode.includes('AIR') || c.includes('air')) {
+      return 'Folding beats calling — with no pair and no draw, continuing bleeds chips.';
+    }
+    return 'Folding beats continuing — the price or your hand strength does not justify putting more in.';
+  }
+  if (recommended === 'call') {
+    if (reasonCode.includes('ODDS') || c.includes('pot-odds') || c.includes('defend')) {
+      return 'Calling beats folding — the pot odds (and/or playability) make continuing correct.';
+    }
+    if (reasonCode.includes('SPR_LOW') || c.includes('stack-off')) {
+      return 'Calling beats folding — low SPR turns strong hands into a commit.';
+    }
+    return 'Calling beats folding — you have enough equity or price to continue.';
+  }
+  if (recommended === 'check') {
+    return 'Checking beats betting — control the pot or avoid auto-firing a weak board.';
+  }
+  if (recommended === 'bet' || recommended === 'raise' || recommended === 'allin') {
+    if (reasonCode.includes('3BET') || c.includes('3bet')) {
+      return 'Raising beats calling — 3-betting grows the pot with a clear plan instead of flatting.';
+    }
+    if (c.includes('rfi') || reasonCode.includes('OPEN')) {
+      return 'Raising beats limping or folding — open for value (or fold trash), never limp first-in.';
+    }
+    if (c.includes('semi-bluff') || c.includes('draw') || reasonCode.includes('DRAW')) {
+      return 'Betting/raising beats checking — deny equity and realize fold equity with your draw.';
+    }
+    if (reasonCode.includes('VALUE') || c.includes('value')) {
+      return 'Betting/raising beats checking — worse hands can still call, so get value in.';
+    }
+    return 'Betting/raising beats checking or calling — apply pressure and build the pot when ahead.';
+  }
+  return 'Stick to the recommended action — it best matches the fundamentals for this spot.';
+}
+
+function buildDetails(args: {
+  recommended: ActionType;
+  reasonCode: ReasonCode;
+  concepts: string[];
+  handClass: HandClass;
+  position: Position;
+  potOdds?: number;
+  spr?: number;
+  sprBand?: SprBand;
+  sizeRange?: CoachAdvice['sizeRange'];
+}): string[] {
+  const details: string[] = [];
+  details.push(
+    `You're in ${args.position} with ${HAND_CLASS_PLAIN[args.handClass]}.`,
+  );
+
+  if (args.potOdds !== undefined && args.potOdds > 0) {
+    details.push(
+      `Pot odds: you need ~${formatPct(args.potOdds)} equity to call.`,
+    );
+  }
+
+  if (args.spr !== undefined && Number.isFinite(args.spr)) {
+    const band = args.sprBand ?? sprBandFromValue(args.spr);
+    const n = args.spr >= 10 ? args.spr.toFixed(0) : args.spr.toFixed(1);
+    details.push(`SPR ≈ ${n} (${band}) — ${sprImplication(band)}.`);
+  }
+
+  details.push(actionLessonBullet(args.recommended, args.reasonCode, args.concepts));
+
+  if (args.sizeRange) {
+    details.push(
+      `Size tip: aim ${args.sizeRange.label} (about ${args.sizeRange.min}–${args.sizeRange.max} chips).`,
+    );
+  }
+
+  return details.slice(0, 5);
+}
+
 function adviceOf(args: {
   recommended: ActionType;
   reasonCode: ReasonCode;
@@ -101,10 +204,23 @@ function adviceOf(args: {
   sizeSpec?: SizeRangeSpec;
   vars?: Record<string, string>;
 }): CoachAdviceInternal {
+  const reason = whyFor(args.reasonCode, args.vars);
+  const details = buildDetails({
+    recommended: args.recommended,
+    reasonCode: args.reasonCode,
+    concepts: args.concepts,
+    handClass: args.handClass,
+    position: args.position,
+    potOdds: args.potOdds,
+    spr: args.spr,
+    sprBand: args.sprBand,
+    sizeRange: args.sizeRange,
+  });
   return {
     recommended: args.recommended,
     sizeRange: args.sizeRange,
-    reason: whyFor(args.reasonCode, args.vars),
+    reason,
+    details,
     reasonCode: args.reasonCode,
     concepts: args.concepts,
     handClass: args.handClass,

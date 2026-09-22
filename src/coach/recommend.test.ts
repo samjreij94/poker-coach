@@ -101,6 +101,82 @@ describe('recommend', () => {
   });
 });
 
+
+  it('always fills details with position/handClass lesson bullets', () => {
+    const hero = { ...heroBase, holeCards: parseCards('AsAh'), seat: 0 };
+    const adv = recommend({
+      hole: hero.holeCards,
+      board: [],
+      street: 'preflop',
+      pot: 3,
+      toCall: 0,
+      hero,
+      buttonSeat: 0,
+      currentBet: 0,
+      minRaise: 2,
+      villainsInHand: 5,
+    });
+    expect(adv.details).toBeDefined();
+    expect(adv.details!.length).toBeGreaterThan(0);
+    expect(adv.details!.length).toBeLessThanOrEqual(5);
+    expect(adv.details![0]).toMatch(/BTN/);
+    expect(adv.details!.some((d) => /SPR/i.test(d))).toBe(true);
+  });
+
+  it('PF_3BET_OR_FOLD details teach 3-bet-or-fold vs flat', () => {
+    // SB facing open with trash → fold / PF_3BET_OR_FOLD (button=0 → seat 1 = SB)
+    const sb = { ...heroBase, holeCards: parseCards('7c2d'), stack: 198, betThisStreet: 1, seat: 1 };
+    const adv = recommend({
+      hole: sb.holeCards,
+      board: [],
+      street: 'preflop',
+      pot: 5,
+      toCall: 3, // facing ~2.5x open after posting 1
+      hero: sb,
+      buttonSeat: 0,
+      currentBet: 5,
+      minRaise: 2,
+      villainsInHand: 1,
+      openerIsLate: true,
+    });
+    expect(adv.reasonCode).toBe('PF_3BET_OR_FOLD');
+    expect(adv.recommended).toBe('fold');
+    expect(adv.details!.length).toBeGreaterThan(0);
+    expect(adv.details!.some((d) => /3-bet|flatting|OOP|squeez/i.test(d))).toBe(true);
+    if (adv.potOdds && adv.potOdds > 0) {
+      expect(adv.details!.some((d) => /Pot odds/i.test(d))).toBe(true);
+    }
+    if (adv.spr !== undefined) {
+      expect(adv.details!.some((d) => /SPR/i.test(d))).toBe(true);
+    }
+  });
+
+  it('postflop odds spot includes pot-odds and SPR details', () => {
+    const hero = {
+      ...heroBase,
+      holeCards: parseCards('AsKs'),
+      stack: 180,
+    };
+    const adv = recommend({
+      hole: hero.holeCards,
+      board: parseCards('2s7s9d'),
+      street: 'flop',
+      pot: 30,
+      toCall: 5,
+      hero,
+      buttonSeat: 0,
+      currentBet: 5,
+      minRaise: 2,
+      villainsInHand: 1,
+    });
+    expect(adv.potOdds).toBeGreaterThan(0);
+    expect(adv.spr).toBeDefined();
+    expect(adv.details).toBeDefined();
+    expect(adv.details!.some((d) => /Pot odds: you need ~/i.test(d))).toBe(true);
+    expect(adv.details!.some((d) => /SPR ≈/i.test(d))).toBe(true);
+    expect(adv.details!.some((d) => /You're in/i.test(d))).toBe(true);
+  });
+
 describe('gradeAction', () => {
   it('grades matching action Good', () => {
     const advice = recommend({
