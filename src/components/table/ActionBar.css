@@ -3,17 +3,21 @@
   max-width: 390px;
   margin: 0 auto;
   box-sizing: border-box;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
   min-height: 120px;
   max-height: 160px;
   padding: 10px 12px;
   padding-bottom: max(12px, env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(12, 14, 18, 0.4), rgba(8, 10, 14, 0.98));
+  /* Opaque so scrolled table content does not show through */
+  background: linear-gradient(180deg, rgba(10, 12, 16, 0.96), #080a0e 40%);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
-  z-index: 15;
+  z-index: 25;
 }
 
 .pc-actions--placeholder {
@@ -97,4 +101,24 @@
 .pc-actions__size:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+@media (max-height: 700px) {
+  .pc-actions {
+    min-height: 100px;
+    max-height: 140px;
+    padding: 8px 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+
+  .pc-actions__btn {
+    min-height: 44px;
+    font-size: 0.85rem;
+  }
+
+  .pc-actions__size {
+    min-height: 40px;
+    font-size: 0.7rem;
+  }
 }

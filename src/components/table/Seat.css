@@ -164,3 +164,30 @@
   left: 12%;
   top: 68%;
 }
+
+/* Short viewports: pull hero up so hole cards clear ActionBar */
+@media (max-height: 700px) {
+  .pc-seat--slot-0 {
+    top: 78%;
+  }
+
+  .pc-seat--hero .pc-seat__cards {
+    min-height: 58px;
+    gap: 4px;
+  }
+
+  .pc-seat--hero .pc-seat__plaque {
+    min-height: 40px;
+  }
+
+  .pc-seat--slot-1,
+  .pc-seat--slot-5 {
+    top: 64%;
+  }
+}
+
+@media (max-height: 600px) {
+  .pc-seat--slot-0 {
+    top: 76%;
+  }
+}

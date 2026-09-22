@@ -6,6 +6,8 @@
   align-items: center;
   justify-content: center;
   padding: 4px 8px;
+  /* Extra bottom padding so hero seat + cards clear the sticky ActionBar */
+  padding-bottom: 12px;
   box-sizing: border-box;
 }
 
@@ -83,4 +85,41 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(226, 232, 240, 0.45);
+}
+
+/* Short viewports (iPhone SE / Safari chrome): flatter oval, tighter padding */
+@media (max-height: 700px) {
+  .pc-table {
+    padding: 2px 6px 8px;
+  }
+
+  .pc-table__rail {
+    /* Higher ratio = shorter oval for same width */
+    aspect-ratio: 0.88;
+    max-height: min(100%, calc(100svh - 280px));
+    padding: 6px;
+  }
+
+  .pc-table__center {
+    top: 44%;
+    gap: 6px;
+  }
+
+  .pc-table__board {
+    min-height: 48px;
+    gap: 3px;
+  }
+
+  .pc-table__board-slot {
+    width: 34px;
+    height: 48px;
+    border-radius: 6px;
+  }
+}
+
+@media (max-height: 600px) {
+  .pc-table__rail {
+    aspect-ratio: 0.95;
+    max-height: min(100%, calc(100svh - 250px));
+  }
 }

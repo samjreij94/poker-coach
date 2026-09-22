@@ -1,15 +1,19 @@
 .pc-app {
   width: 100%;
   max-width: 390px;
-  height: 100%;
+  /* Grow with content; min-height covers viewport (svh accounts for Safari chrome) */
   min-height: 100dvh;
+  min-height: 100svh;
+  height: auto;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   background: #07090c;
   color: #e2e8f0;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
@@ -43,9 +47,28 @@
 }
 
 .pc-app__table {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   position: relative;
+  /* If seats still overflow, scroll cards into view above sticky ActionBar */
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Short Safari / iPhone SE viewports: keep table usable above action bar */
+@media (max-height: 700px) {
+  .pc-app__tools {
+    padding: 2px 10px 0;
+  }
+
+  .pc-app__tool {
+    min-height: 32px;
+    font-size: 0.65rem;
+  }
+
+  .pc-app__table {
+    min-height: 180px;
+  }
 }

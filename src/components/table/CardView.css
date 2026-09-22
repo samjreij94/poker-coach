@@ -94,3 +94,18 @@
   border-radius: 2px;
   border: 1px solid rgba(125, 211, 252, 0.2);
 }
+
+@media (max-height: 700px) {
+  .pc-card--lg {
+    --pc-card-w: 44px;
+    --pc-card-h: 62px;
+    --pc-card-radius: 7px;
+    --pc-card-fs-rank: 0.9rem;
+    --pc-card-fs-suit: 1rem;
+  }
+
+  .pc-card {
+    --pc-card-w: 34px;
+    --pc-card-h: 48px;
+  }
+}
