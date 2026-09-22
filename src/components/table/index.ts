@@ -5,5 +5,6 @@ export { Pot } from './Pot';
 export { ActionBar } from './ActionBar';
 export type { HeroActionPayload } from './ActionBar';
 export { CoachStrip } from './CoachStrip';
+export { HandResultSplash } from './HandResultSplash';
 export { MOCK_TABLE } from './mockState';
 export { formatChips } from './formatChips';

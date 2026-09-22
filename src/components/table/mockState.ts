@@ -34,6 +34,7 @@ export const MOCK_TABLE: PublicTableView = {
   buttonSeat: 3,
   handNumber: 7,
   winners: [],
+  handResult: null,
   log: ['Hand #7', 'Flop Kd7c2h', 'Vic bets 12'],
   heroSeat: 0,
   legalActions: {

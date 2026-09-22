@@ -133,4 +133,12 @@ export function usePokerCoach(heroSeat = 3): PokerCoachApi {
   };
 }
 
-export type { CoachAdvice, CoachGrade, PublicTableView, PlayerAction };
+export type {
+  CoachAdvice,
+  CoachGrade,
+  PublicTableView,
+  PlayerAction,
+  HandResult,
+  HandResultWinner,
+  HeroHandOutcome,
+} from '../poker';

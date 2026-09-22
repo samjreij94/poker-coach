@@ -1,16 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   ActionBar,
   CoachStrip,
+  HandResultSplash,
   Table,
   type HeroActionPayload,
 } from './components/table';
 import { usePokerCoach } from './hooks/usePokerCoach';
+import { normalizeHandResult } from './types/handResult';
 import './App.css';
 
 /**
  * Felt UI shell over Dealer's usePokerCoach API (PublicTableView + coach).
- * Hero drawn bottom-center via seat→slot remap in Table.
+ * Hand-over splash from view.handResult (Dealer HandResult → normalize → splash).
  */
 function App() {
   const {
@@ -30,6 +32,12 @@ function App() {
     dealt.current = true;
     newHand();
   }, [newHand]);
+
+  const splash = useMemo(
+    () => normalizeHandResult(view.handResult, view.board),
+    [view.handResult, view.board],
+  );
+  const showSplash = splash != null;
 
   const onAction = (action: HeroActionPayload) => {
     heroAct(action);
@@ -62,13 +70,18 @@ function App() {
 
       <main className="pc-app__table">
         <Table view={view} />
+        {showSplash && splash ? (
+          <HandResultSplash result={splash} onNextHand={newHand} />
+        ) : null}
       </main>
 
-      <ActionBar
-        legal={view.legalActions}
-        onAction={onAction}
-        disabled={!view.legalActions}
-      />
+      {!showSplash ? (
+        <ActionBar
+          legal={view.legalActions}
+          onAction={onAction}
+          disabled={!view.legalActions}
+        />
+      ) : null}
     </div>
   );
 }

@@ -23,4 +23,7 @@ export type {
   PublicPlayerView as SeatView,
   LegalActions,
   GameState,
+  HandResult,
+  HandResultWinner,
+  HeroHandOutcome,
 } from '../poker/game';

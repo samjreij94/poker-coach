@@ -6,6 +6,7 @@ import { positionForSeat } from './positions';
 import type {
   Card,
   GameConfig,
+  HandRank,
   PlayerAction,
   PlayerState,
   Pot,
@@ -30,6 +31,8 @@ export interface GameState {
   pots: Pot[];
   handNumber: number;
   winners: { playerId: number; amount: number; description: string }[];
+  /** Set when hand completes (fold or showdown); cleared on startHand */
+  handResult: HandResult | null;
   log: string[];
   heroSeat: number;
   /** Injectable RNG (default Math.random) */
@@ -49,6 +52,7 @@ export interface PublicTableView {
   handNumber: number;
   players: PublicPlayerView[];
   winners: GameState['winners'];
+  handResult: HandResult | null;
   log: string[];
   heroSeat: number;
   legalActions: LegalActions | null;
@@ -88,6 +92,32 @@ export class IllegalActionError extends Error {
     super(message);
     this.name = 'IllegalActionError';
   }
+}
+
+/**
+ * Dealer end-of-hand API on PublicTableView.handResult (street === handOver).
+ * Cleared when the next hand starts.
+ */
+export interface HandResultWinner {
+  seat: number;
+  name: string;
+  amountWon: number;
+  /** Showdown hand name e.g. "Two Pair, Aces and Sevens"; omit on fold-win */
+  handName?: string;
+  /** Revealed hole cards at showdown */
+  holeCards?: Card[];
+}
+
+export type HeroHandOutcome = 'win' | 'lose' | 'split';
+
+export interface HandResult {
+  kind: 'fold' | 'showdown';
+  heroOutcome: HeroHandOutcome;
+  winners: HandResultWinner[];
+  board: Card[];
+  potTotal: number;
+  /** Short learner-facing why */
+  why: string;
 }
 
 const BOT_NAMES = ['Tina Tight', 'Larry LAG', 'Cathy Call', 'Vic Value', 'Pam Passive'];
@@ -151,6 +181,7 @@ export function createInitialState(
     pots: [],
     handNumber: 0,
     winners: [],
+    handResult: null,
     log: [],
     heroSeat,
     rng: opts.rng ?? Math.random,
@@ -205,6 +236,18 @@ function postBlind(state: GameState, seat: number, amount: number): void {
   if (p.stack === 0) p.allIn = true;
 }
 
+function cloneHandResult(hr: HandResult | null): HandResult | null {
+  if (!hr) return null;
+  return {
+    ...hr,
+    board: [...hr.board],
+    winners: hr.winners.map((w) => ({
+      ...w,
+      holeCards: w.holeCards ? [...w.holeCards] : undefined,
+    })),
+  };
+}
+
 function cloneState(state: GameState): GameState {
   return {
     ...state,
@@ -213,6 +256,7 @@ function cloneState(state: GameState): GameState {
     deck: [...state.deck],
     pots: state.pots.map((p) => ({ ...p, eligible: [...p.eligible] })),
     winners: [...state.winners],
+    handResult: cloneHandResult(state.handResult),
     log: [...state.log],
     actedThisRound: [...state.actedThisRound],
     config: { ...state.config },
@@ -233,6 +277,7 @@ export function startHand(state: GameState, rng?: () => number): GameState {
   }));
   next.board = [];
   next.winners = [];
+  next.handResult = null;
   next.pots = [];
   next.log = [];
   next.handNumber = state.handNumber + 1;
@@ -390,15 +435,95 @@ function nextActiveSeat(state: GameState, fromSeat: number): number {
   return -1;
 }
 
+const RANK_WORD: Record<number, [string, string]> = {
+  14: ['Ace', 'Aces'],
+  13: ['King', 'Kings'],
+  12: ['Queen', 'Queens'],
+  11: ['Jack', 'Jacks'],
+  10: ['Ten', 'Tens'],
+  9: ['Nine', 'Nines'],
+  8: ['Eight', 'Eights'],
+  7: ['Seven', 'Sevens'],
+  6: ['Six', 'Sixes'],
+  5: ['Five', 'Fives'],
+  4: ['Four', 'Fours'],
+  3: ['Three', 'Threes'],
+  2: ['Two', 'Twos'],
+};
+
+/** Learner-facing hand name from evaluator HandRank */
+export function displayHandName(hr: HandRank): string {
+  const rw = (r: number, plural = false) => {
+    const pair = RANK_WORD[r] ?? [String(r), `${r}s`];
+    return plural ? pair[1]! : pair[0]!;
+  };
+  switch (hr.category) {
+    case 'straightFlush':
+      return hr.ranks[0] === 14
+        ? 'Royal Flush'
+        : `Straight Flush, ${rw(hr.ranks[0]!)} high`;
+    case 'quads':
+      return `Four of a Kind, ${rw(hr.ranks[0]!, true)}`;
+    case 'fullHouse':
+      return `Full House, ${rw(hr.ranks[0]!, true)} full of ${rw(hr.ranks[1]!, true)}`;
+    case 'flush':
+      return `Flush, ${rw(hr.ranks[0]!)} high`;
+    case 'straight':
+      return `Straight, ${rw(hr.ranks[0]!)} high`;
+    case 'trips':
+      return `Three of a Kind, ${rw(hr.ranks[0]!, true)}`;
+    case 'twoPair':
+      return `Two Pair, ${rw(hr.ranks[0]!, true)} and ${rw(hr.ranks[1]!, true)}`;
+    case 'pair':
+      return `Pair of ${rw(hr.ranks[0]!, true)}`;
+    default:
+      return `High Card ${rw(hr.ranks[0]!)}`;
+  }
+}
+
+function buildWhy(
+  kind: 'fold' | 'showdown',
+  heroOutcome: HeroHandOutcome,
+  winners: HandResultWinner[],
+  heroSeat: number,
+): string {
+  const primary = [...winners].sort((a, b) => b.amountWon - a.amountWon)[0]!;
+  const heroW = winners.find((w) => w.seat === heroSeat);
+  if (kind === 'fold') {
+    if (heroOutcome === 'win') return 'You won uncontested — all folded';
+    return `${primary.name} won uncontested — all folded`;
+  }
+  if (heroOutcome === 'win' && heroW) {
+    return `You won $${heroW.amountWon} with ${heroW.handName ?? 'the best hand'}`;
+  }
+  if (heroOutcome === 'split' && heroW) {
+    return `You chopped $${heroW.amountWon} with ${heroW.handName ?? 'the best hand'}`;
+  }
+  return `${primary.name} won with ${primary.handName ?? 'the best hand'}`;
+}
+
+function heroOutcomeFromWinners(
+  winners: HandResultWinner[],
+  heroSeat: number,
+  heroChopped: boolean,
+): HeroHandOutcome {
+  if (!winners.some((w) => w.seat === heroSeat)) return 'lose';
+  if (heroChopped) return 'split';
+  return 'win';
+}
+
 function awardPots(state: GameState): GameState {
   state.pots = buildPots(state.players);
   state.winners = [];
   state.actingSeat = -1;
 
+  const potTotalAmt = totalPot(state.pots);
+  const boardSnapshot = [...state.board];
+
   const alive = playersInHand(state);
   if (alive.length === 1) {
     const w = alive[0]!;
-    const amt = totalPot(state.pots);
+    const amt = potTotalAmt;
     w.stack += amt;
     state.winners.push({
       playerId: w.id,
@@ -406,6 +531,20 @@ function awardPots(state: GameState): GameState {
       description: `${w.name} wins $${amt} (others folded)`,
     });
     state.log.push(state.winners[0]!.description);
+
+    const foldWinners: HandResultWinner[] = [
+      { seat: w.seat, name: w.name, amountWon: amt },
+    ];
+    const heroOutcome = heroOutcomeFromWinners(foldWinners, state.heroSeat, false);
+    state.handResult = {
+      kind: 'fold',
+      heroOutcome,
+      winners: foldWinners,
+      board: boardSnapshot,
+      potTotal: potTotalAmt,
+      why: buildWhy('fold', heroOutcome, foldWinners, state.heroSeat),
+    };
+
     state.street = 'handOver';
     state.pots = [];
     for (const p of state.players) {
@@ -422,6 +561,10 @@ function awardPots(state: GameState): GameState {
       else dealBoard(state, 1);
     }
   }
+  const finalBoard = [...state.board];
+
+  const bySeat = new Map<number, HandResultWinner>();
+  let heroChopped = false;
 
   for (const pot of state.pots) {
     const elig = pot.eligible
@@ -430,19 +573,25 @@ function awardPots(state: GameState): GameState {
     if (elig.length === 0) continue;
 
     let bestVal = -1;
-    let winners: PlayerState[] = [];
+    let potWinners: PlayerState[] = [];
     for (const p of elig) {
       const hr = evaluateHand([...p.holeCards, ...state.board]);
       if (hr.rankValue > bestVal) {
         bestVal = hr.rankValue;
-        winners = [p];
+        potWinners = [p];
       } else if (hr.rankValue === bestVal) {
-        winners.push(p);
+        potWinners.push(p);
       }
     }
-    const share = Math.floor(pot.amount / winners.length);
-    let remainder = pot.amount - share * winners.length;
-    for (const w of winners) {
+    if (
+      potWinners.length > 1 &&
+      potWinners.some((p) => p.seat === state.heroSeat)
+    ) {
+      heroChopped = true;
+    }
+    const share = Math.floor(pot.amount / potWinners.length);
+    let remainder = pot.amount - share * potWinners.length;
+    for (const w of potWinners) {
       let get = share;
       if (remainder > 0) {
         get += 1;
@@ -450,14 +599,43 @@ function awardPots(state: GameState): GameState {
       }
       w.stack += get;
       const hr = evaluateHand([...w.holeCards, ...state.board]);
+      const handName = displayHandName(hr);
       state.winners.push({
         playerId: w.id,
         amount: get,
-        description: `${w.name} wins $${get} with ${hr.description}`,
+        description: `${w.name} wins $${get} with ${handName}`,
       });
       state.log.push(state.winners[state.winners.length - 1]!.description);
+
+      const existing = bySeat.get(w.seat);
+      if (existing) {
+        existing.amountWon += get;
+      } else {
+        bySeat.set(w.seat, {
+          seat: w.seat,
+          name: w.name,
+          amountWon: get,
+          handName,
+          holeCards: [...w.holeCards],
+        });
+      }
     }
   }
+
+  const sdWinners = [...bySeat.values()];
+  const heroOutcome = heroOutcomeFromWinners(
+    sdWinners,
+    state.heroSeat,
+    heroChopped,
+  );
+  state.handResult = {
+    kind: 'showdown',
+    heroOutcome,
+    winners: sdWinners,
+    board: finalBoard,
+    potTotal: potTotalAmt,
+    why: buildWhy('showdown', heroOutcome, sdWinners, state.heroSeat),
+  };
 
   state.street = 'handOver';
   state.pots = [];
@@ -467,6 +645,7 @@ function awardPots(state: GameState): GameState {
   }
   return state;
 }
+
 
 /**
  * amount on bet/raise/allin = chips put in on this action (not "raise to").
@@ -691,6 +870,7 @@ export function resetStacks(state: GameState): GameState {
     board: [],
     pots: [],
     winners: [],
+    handResult: null,
     actedThisRound: Array(state.config.seats).fill(false),
     log: ['Stacks reset to 100bb.'],
   };
@@ -768,6 +948,7 @@ export function toPublicView(state: GameState, revealAll = false): PublicTableVi
     buttonSeat: state.buttonSeat,
     handNumber: state.handNumber,
     winners: state.winners,
+    handResult: state.handResult,
     log: state.log.slice(-12),
     heroSeat: state.heroSeat,
     legalActions:
