@@ -21,10 +21,11 @@
 }
 
 .pc-coach--open {
-  /* Allow full advice text; scroll strip if extremely long */
-  max-height: none;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  /* Cap open coach so hero cards stay clear on short phones */
+  max-height: min(42vh, 280px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .pc-coach__handle {
@@ -33,6 +34,7 @@
   justify-content: space-between;
   min-height: 28px;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .pc-coach__badge {
@@ -75,6 +77,10 @@
   margin-top: 6px;
   text-align: left;
   padding-bottom: 4px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .pc-coach__rec {
@@ -88,7 +94,6 @@
   font-size: 0.72rem;
   line-height: 1.35;
   color: rgba(203, 213, 225, 0.9);
-  /* Wrap fully — no hard mid-sentence clamp */
   display: block;
   white-space: normal;
   overflow: visible;
@@ -97,6 +102,34 @@
   -webkit-box-orient: unset;
 }
 
+.pc-coach__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.pc-coach__chip {
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  line-height: 1.3;
+}
+
+.pc-coach__chip--metric {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+  font-weight: 600;
+}
+
+.pc-coach__chip--concept {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
+/* Back-compat if anything still targets concepts */
 .pc-coach__concepts {
   display: flex;
   flex-wrap: wrap;
@@ -114,10 +147,59 @@
   color: #7dd3fc;
 }
 
+.pc-coach__details {
+  margin: 8px 0 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.pc-coach__details li {
+  font-size: 0.68rem;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.pc-coach__details li:last-child {
+  margin-bottom: 0;
+}
+
+.pc-coach__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: 4px;
+  margin-left: -8px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #7dd3fc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pc-coach__more:hover,
+.pc-coach__more:focus-visible {
+  background: rgba(56, 189, 248, 0.12);
+  outline: none;
+}
+
 @media (max-height: 700px) {
   .pc-coach {
     padding: 4px 10px;
     padding-top: max(4px, env(safe-area-inset-top));
+  }
+
+  .pc-coach--open {
+    max-height: min(42vh, 280px);
   }
 
   .pc-coach__rec {
@@ -126,5 +208,9 @@
 
   .pc-coach__reason {
     font-size: 0.68rem;
+  }
+
+  .pc-coach__details li {
+    font-size: 0.64rem;
   }
 }
