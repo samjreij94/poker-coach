@@ -21,8 +21,8 @@
 }
 
 .pc-coach--open {
-  /* Cap open coach so hero cards stay clear on short phones */
-  max-height: min(42vh, 280px);
+  /* Tall enough for reason + 2 details + More on 375×667; never cover hero */
+  max-height: min(48vh, 320px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -74,48 +74,60 @@
 }
 
 .pc-coach__body {
-  margin-top: 6px;
+  margin-top: 4px;
   text-align: left;
   padding-bottom: 4px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .pc-coach__rec {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   font-size: 0.8rem;
   color: #e2e8f0;
+  flex-shrink: 0;
 }
 
 .pc-coach__reason {
   margin: 0;
   font-size: 0.72rem;
-  line-height: 1.35;
+  line-height: 1.3;
   color: rgba(203, 213, 225, 0.9);
-  display: block;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  -webkit-line-clamp: unset;
-  -webkit-box-orient: unset;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .pc-coach__chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.pc-coach__chips::-webkit-scrollbar {
+  display: none;
 }
 
 .pc-coach__chip {
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   padding: 2px 6px;
   border-radius: 999px;
-  line-height: 1.3;
+  line-height: 1.25;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pc-coach__chip--metric {
@@ -148,16 +160,19 @@
 }
 
 .pc-coach__details {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   padding: 0 0 0 1.1em;
   list-style: disc;
   color: rgba(203, 213, 225, 0.92);
+  flex-shrink: 0;
+  /* Reserve room so first 2 bullets never clip under max-height */
+  min-height: 2.8em;
 }
 
 .pc-coach__details li {
   font-size: 0.68rem;
-  line-height: 1.4;
-  margin-bottom: 4px;
+  line-height: 1.35;
+  margin-bottom: 3px;
 }
 
 .pc-coach__details li:last-child {
@@ -168,9 +183,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: 36px;
   min-width: 44px;
-  margin-top: 4px;
+  margin-top: 2px;
   margin-left: -8px;
   padding: 0 12px;
   border: none;
@@ -184,6 +199,8 @@
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  align-self: flex-start;
 }
 
 .pc-coach__more:hover,
@@ -199,7 +216,11 @@
   }
 
   .pc-coach--open {
-    max-height: min(42vh, 280px);
+    max-height: min(48vh, 320px);
+  }
+
+  .pc-coach__handle {
+    min-height: 24px;
   }
 
   .pc-coach__rec {
@@ -207,10 +228,27 @@
   }
 
   .pc-coach__reason {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
+    line-height: 1.25;
+  }
+
+  .pc-coach__details {
+    margin-top: 4px;
+    min-height: 2.6em;
   }
 
   .pc-coach__details li {
-    font-size: 0.64rem;
+    font-size: 0.62rem;
+    line-height: 1.3;
+    margin-bottom: 2px;
+  }
+
+  .pc-coach__more {
+    min-height: 32px;
+    margin-top: 0;
+  }
+
+  .pc-coach__chips {
+    margin-top: 4px;
   }
 }

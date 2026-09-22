@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CoachAdvice, CoachGrade } from '../../poker/types';
+import type { CoachAdvice, CoachGrade, HandClass, Position } from '../../poker/types';
 import './CoachStrip.css';
 
 interface CoachStripProps {
@@ -9,12 +9,25 @@ interface CoachStripProps {
   collapsed?: boolean;
 }
 
-function formatHandClass(handClass: string): string {
-  return handClass
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (c) => c.toUpperCase())
-    .trim();
-}
+/** Short plain seat labels for metric chips (never raw EP/CO/BTN). */
+const POSITION_CHIP: Record<Position, string> = {
+  EP: 'Early',
+  MP: 'Middle',
+  CO: 'Cutoff',
+  BTN: 'Button',
+  SB: 'Small blind',
+  BB: 'Big blind',
+};
+
+/** Short plain hand-strength labels for metric chips (never raw air). */
+const HAND_CLASS_CHIP: Record<HandClass, string> = {
+  air: 'Weak hand',
+  weakDraw: 'Weak draw',
+  strongDraw: 'Strong draw',
+  weakMade: 'Weak pair',
+  strongMade: 'Strong hand',
+  nuts: 'Nuts',
+};
 
 function potOddsChip(potOdds: number | undefined): string | null {
   if (potOdds === undefined || !(potOdds > 0)) return null;
@@ -49,8 +62,8 @@ export function CoachStrip({ advice = null, grade = null, collapsed = true }: Co
   const chips = useMemo(() => {
     if (!teaching) return [] as string[];
     const out: string[] = [];
-    out.push(teaching.position);
-    out.push(formatHandClass(teaching.handClass));
+    out.push(POSITION_CHIP[teaching.position] ?? teaching.position);
+    out.push(HAND_CLASS_CHIP[teaching.handClass] ?? teaching.handClass);
     const odds = potOddsChip(teaching.potOdds);
     if (odds) out.push(odds);
     const sprLabel = sprChip(teaching.spr);
@@ -58,7 +71,6 @@ export function CoachStrip({ advice = null, grade = null, collapsed = true }: Co
     return out;
   }, [teaching]);
 
-  const conceptChips = teaching?.concepts?.slice(0, 3) ?? [];
   const reason = grade?.why ?? teaching?.reason ?? '';
   const headline = teaching
     ? `${teaching.recommended.toUpperCase()}${teaching.sizeRange ? ` · ${teaching.sizeRange.label}` : ''}`
@@ -89,21 +101,7 @@ export function CoachStrip({ advice = null, grade = null, collapsed = true }: Co
           ) : null}
           {reason ? <p className="pc-coach__reason">{reason}</p> : null}
 
-          {(chips.length > 0 || conceptChips.length > 0) && (
-            <ul className="pc-coach__chips" aria-label="Coach metrics">
-              {chips.map((c) => (
-                <li key={c} className="pc-coach__chip pc-coach__chip--metric">
-                  {c}
-                </li>
-              ))}
-              {conceptChips.map((c) => (
-                <li key={`c-${c}`} className="pc-coach__chip pc-coach__chip--concept">
-                  {c}
-                </li>
-              ))}
-            </ul>
-          )}
-
+          {/* Teaching first: 2 details + More above the fold; chips after */}
           {visibleDetails.length > 0 ? (
             <ul className="pc-coach__details">
               {visibleDetails.map((d, i) => (
@@ -121,6 +119,16 @@ export function CoachStrip({ advice = null, grade = null, collapsed = true }: Co
             >
               {moreOpen ? 'Less' : 'More'}
             </button>
+          ) : null}
+
+          {chips.length > 0 ? (
+            <ul className="pc-coach__chips" aria-label="Coach metrics">
+              {chips.map((c) => (
+                <li key={c} className="pc-coach__chip pc-coach__chip--metric">
+                  {c}
+                </li>
+              ))}
+            </ul>
           ) : null}
         </div>
       ) : null}
