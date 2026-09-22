@@ -1,0 +1,213 @@
+.stub {
+  max-width: 390px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) 12px
+    max(12px, env(safe-area-inset-bottom));
+  background: #0b3d2e;
+  color: #f2f7f4;
+  font-family: system-ui, -apple-system, sans-serif;
+  box-sizing: border-box;
+}
+
+.stub__hdr {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.stub__meta {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.stub__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stub button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: none;
+  background: #1f6b4f;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.stub button:active {
+  transform: scale(0.98);
+}
+
+.stub__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+
+.stub__pot {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 8px 0;
+}
+
+.stub__board {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  margin-bottom: 12px;
+}
+
+.card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 56px;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.card--red {
+  color: #c62828;
+}
+
+.card--black {
+  color: #111;
+}
+
+.stub__seats {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.stub__seats li {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.stub__seats li.is-hero {
+  outline: 2px solid #ffd54f;
+}
+
+.stub__seats li.is-acting {
+  outline: 2px solid #80cbc4;
+}
+
+.stub__seats li.is-folded {
+  opacity: 0.45;
+}
+
+.stub__holes {
+  margin-top: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+.stub__coach {
+  background: #10261e;
+  border: 1px solid #2e7d5b;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 10px 0;
+}
+
+.stub__coach-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.stub__coach p {
+  margin: 6px 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.stub__concepts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  font-size: 11px;
+  background: #1b4332;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.stub__grade {
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.stub__grade--good {
+  background: #1b5e20;
+}
+
+.stub__grade--ok {
+  background: #33691e;
+}
+
+.stub__grade--leak {
+  background: #b71c1c;
+}
+
+.stub__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: sticky;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  padding: 8px 0;
+  background: linear-gradient(transparent, #0b3d2e 30%);
+}
+
+.stub__foot {
+  margin-top: 16px;
+  font-size: 11px;
+  opacity: 0.65;
+  text-align: center;
+}
+
+.muted {
+  opacity: 0.6;
+  font-size: 13px;
+}
+
+.stub__winners {
+  background: #1a237e;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.stub__hero {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

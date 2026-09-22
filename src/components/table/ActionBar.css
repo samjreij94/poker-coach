@@ -1,0 +1,100 @@
+.pc-actions {
+  width: 100%;
+  max-width: 390px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  min-height: 120px;
+  max-height: 160px;
+  padding: 10px 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(12, 14, 18, 0.4), rgba(8, 10, 14, 0.98));
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  z-index: 15;
+}
+
+.pc-actions--placeholder {
+  align-items: center;
+  justify-content: center;
+}
+
+.pc-actions__placeholder-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.45);
+}
+
+.pc-actions__row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.pc-actions__spacer {
+  flex: 1;
+}
+
+.pc-actions__btn {
+  flex: 1;
+  min-height: 48px;
+  min-width: 44px;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #f8fafc;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pc-actions__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pc-actions__btn--fold {
+  background: linear-gradient(180deg, #475569, #334155);
+}
+
+.pc-actions__btn--check,
+.pc-actions__btn--call {
+  background: linear-gradient(180deg, #0ea5e9, #0284c7);
+}
+
+.pc-actions__btn--raise {
+  background: linear-gradient(180deg, #22c55e, #15803d);
+}
+
+.pc-actions__sizes {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.pc-actions__size {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(30, 41, 59, 0.9);
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pc-actions__size--allin {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.pc-actions__size:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -1,0 +1,96 @@
+.pc-card {
+  --pc-card-w: 42px;
+  --pc-card-h: 60px;
+  --pc-card-radius: 7px;
+  --pc-card-fs-rank: 0.85rem;
+  --pc-card-fs-suit: 0.95rem;
+
+  position: relative;
+  width: var(--pc-card-w);
+  height: var(--pc-card-h);
+  border-radius: var(--pc-card-radius);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  user-select: none;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.pc-card--sm {
+  --pc-card-w: 30px;
+  --pc-card-h: 42px;
+  --pc-card-radius: 5px;
+  --pc-card-fs-rank: 0.65rem;
+  --pc-card-fs-suit: 0.72rem;
+}
+
+.pc-card--lg {
+  --pc-card-w: 52px;
+  --pc-card-h: 74px;
+  --pc-card-radius: 8px;
+  --pc-card-fs-rank: 1.05rem;
+  --pc-card-fs-suit: 1.15rem;
+}
+
+.pc-card--face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: linear-gradient(160deg, #f7f4ee 0%, #e8e4dc 100%);
+}
+
+.pc-card--red {
+  color: #e11d2e;
+}
+
+.pc-card--black {
+  color: #0c1a2e;
+}
+
+.pc-card--black .pc-card__suit {
+  color: #0e7490; /* cyan-leaning for ♠♣ readability */
+}
+
+.pc-card__rank {
+  font-weight: 700;
+  font-size: var(--pc-card-fs-rank);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.pc-card__suit {
+  font-size: var(--pc-card-fs-suit);
+  line-height: 1;
+}
+
+.pc-card--back {
+  background: linear-gradient(145deg, #1e3a5f 0%, #0f2440 55%, #162d4a 100%);
+  overflow: hidden;
+}
+
+.pc-card__back-pattern {
+  position: absolute;
+  inset: 4px;
+  border-radius: calc(var(--pc-card-radius) - 2px);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(125, 211, 252, 0.08) 4px,
+      rgba(125, 211, 252, 0.08) 5px
+    ),
+    radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.15), transparent 70%);
+}
+
+.pc-card__back-pattern::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 2px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+}
