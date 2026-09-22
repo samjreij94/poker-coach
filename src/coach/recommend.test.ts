@@ -119,8 +119,8 @@ describe('recommend', () => {
     expect(adv.details).toBeDefined();
     expect(adv.details!.length).toBeGreaterThan(0);
     expect(adv.details!.length).toBeLessThanOrEqual(5);
-    expect(adv.details![0]).toMatch(/BTN/);
-    expect(adv.details!.some((d) => /SPR/i.test(d))).toBe(true);
+    expect(adv.details![0]).toMatch(/button \(dealer seat\)/i);
+    expect(adv.details!.some((d) => /Stack-to-pot ratio/i.test(d))).toBe(true);
   });
 
   it('PF_3BET_OR_FOLD details teach 3-bet-or-fold vs flat', () => {
@@ -142,13 +142,40 @@ describe('recommend', () => {
     expect(adv.reasonCode).toBe('PF_3BET_OR_FOLD');
     expect(adv.recommended).toBe('fold');
     expect(adv.details!.length).toBeGreaterThan(0);
-    expect(adv.details!.some((d) => /3-bet|flatting|OOP|squeez/i.test(d))).toBe(true);
+    expect(adv.details!.some((d) => /Folding beats just calling|re-raised behind/i.test(d))).toBe(true);
     if (adv.potOdds && adv.potOdds > 0) {
       expect(adv.details!.some((d) => /Pot odds/i.test(d))).toBe(true);
     }
     if (adv.spr !== undefined) {
-      expect(adv.details!.some((d) => /SPR/i.test(d))).toBe(true);
+      expect(adv.details!.some((d) => /Stack-to-pot ratio/i.test(d))).toBe(true);
     }
+  });
+
+  it('plain-speaks cutoff + very weak hand (no CO/air jargon)', () => {
+    const hero = {
+      ...heroBase,
+      holeCards: parseCards('7c2d'),
+      stack: 200,
+      seat: 5, // CO when button=0
+    };
+    const adv = recommend({
+      hole: hero.holeCards,
+      board: [],
+      street: 'preflop',
+      pot: 3,
+      toCall: 0,
+      hero,
+      buttonSeat: 0,
+      currentBet: 0,
+      minRaise: 2,
+      villainsInHand: 5,
+    });
+    const line = adv.details![0]!;
+    expect(line).toMatch(/cutoff \(late position\)/i);
+    expect(line).toMatch(/very weak hand/i);
+    expect(line).not.toMatch(/\bCO\b/);
+    expect(line).not.toMatch(/\bair\b/i);
+    expect(adv.concepts.some((c) => /\bCO\b/.test(c) || /Hand class: air/i.test(c))).toBe(false);
   });
 
   it('postflop odds spot includes pot-odds and SPR details', () => {
@@ -172,9 +199,9 @@ describe('recommend', () => {
     expect(adv.potOdds).toBeGreaterThan(0);
     expect(adv.spr).toBeDefined();
     expect(adv.details).toBeDefined();
-    expect(adv.details!.some((d) => /Pot odds: you need ~/i.test(d))).toBe(true);
-    expect(adv.details!.some((d) => /SPR ≈/i.test(d))).toBe(true);
-    expect(adv.details!.some((d) => /You're in/i.test(d))).toBe(true);
+    expect(adv.details!.some((d) => /pot odds|chance of winning/i.test(d))).toBe(true);
+    expect(adv.details!.some((d) => /Stack-to-pot ratio ≈/i.test(d))).toBe(true);
+    expect(adv.details!.some((d) => /You're in early position with a strong draw/i.test(d))).toBe(true);
   });
 
 describe('gradeAction', () => {

@@ -86,19 +86,66 @@ function chipSizeFromPot(
   };
 }
 
+/** Beginner-friendly seat labels — never dump EP/CO/BTN alone in learner copy. */
+function positionPlain(pos: Position): string {
+  switch (pos) {
+    case 'EP':
+      return 'early position';
+    case 'MP':
+      return 'middle position';
+    case 'CO':
+      return 'the cutoff (late position)';
+    case 'BTN':
+      return 'the button (dealer seat)';
+    case 'SB':
+      return 'the small blind';
+    case 'BB':
+      return 'the big blind';
+  }
+}
+
+/** Beginner-friendly hand strength — never dump raw enums like "air". */
 const HAND_CLASS_PLAIN: Record<HandClass, string> = {
-  air: 'air',
-  weakDraw: 'a weak draw',
-  strongDraw: 'a strong draw',
-  weakMade: 'a weak made hand',
+  air: 'a very weak hand — almost nothing if this goes to showdown',
+  weakDraw: 'a weak draw (few ways to improve)',
+  strongDraw: 'a strong draw (many ways to improve)',
+  weakMade: 'a weak one-pair hand',
   strongMade: 'a strong made hand',
-  nuts: 'the nuts (or near-nuts)',
+  nuts: 'the nuts (best possible hand)',
 };
 
+/** Short chip labels for Graphics concept pills. */
+function handClassChip(hc: HandClass): string {
+  switch (hc) {
+    case 'air':
+      return 'very weak hand';
+    case 'weakDraw':
+      return 'weak draw';
+    case 'strongDraw':
+      return 'strong draw';
+    case 'weakMade':
+      return 'weak one-pair';
+    case 'strongMade':
+      return 'strong made hand';
+    case 'nuts':
+      return 'best possible hand';
+  }
+}
+
+function sprBandPlain(band: SprBand): string {
+  if (band === 'low') return 'low';
+  if (band === 'mid') return 'medium';
+  return 'high';
+}
+
 function sprImplication(band: SprBand): string {
-  if (band === 'low') return 'commit readily with strong hands — the pot is large vs stacks';
-  if (band === 'mid') return 'build carefully; sets and strong draws thrive here';
-  return 'stacks are deep — one weak pair rarely wants to call off huge';
+  if (band === 'low') {
+    return 'the pot is already large compared with stacks, so strong hands often put the rest in';
+  }
+  if (band === 'mid') {
+    return 'a good zone to build the pot with very strong hands or strong draws';
+  }
+  return 'stacks are deep, so a weak one-pair rarely wants to put in a huge amount';
 }
 
 /** Why recommended action beats the main alternative in this spot (educational). */
@@ -110,42 +157,42 @@ function actionLessonBullet(
   const c = concepts.join(' ').toLowerCase();
   if (recommended === 'fold') {
     if (reasonCode === 'PF_3BET_OR_FOLD' || c.includes('3bet-or-fold')) {
-      return 'Folding beats flatting here — calling OOP invites squeezes and tough multiway pots.';
+      return 'Folding beats just calling here — calling from this seat often leaves you acting first later and can get re-raised behind you.';
     }
     if (reasonCode.includes('ODDS') || c.includes('pot-odds')) {
-      return 'Folding beats calling — you are not getting a good enough price on your equity.';
+      return 'Folding beats calling — you are not getting a good enough price for how often your hand wins.';
     }
-    if (reasonCode.includes('AIR') || c.includes('air')) {
-      return 'Folding beats calling — with no pair and no draw, continuing bleeds chips.';
+    if (reasonCode.includes('AIR') || c.includes('very weak') || c.includes('air')) {
+      return 'Folding beats calling — with no pair and no real draw, putting more money in usually loses.';
     }
-    return 'Folding beats continuing — the price or your hand strength does not justify putting more in.';
+    return 'Folding beats continuing — the price to call or your hand strength does not justify putting more in.';
   }
   if (recommended === 'call') {
     if (reasonCode.includes('ODDS') || c.includes('pot-odds') || c.includes('defend')) {
-      return 'Calling beats folding — the pot odds (and/or playability) make continuing correct.';
+      return 'Calling beats folding — the price to call is good enough for how often you can win.';
     }
     if (reasonCode.includes('SPR_LOW') || c.includes('stack-off')) {
-      return 'Calling beats folding — low SPR turns strong hands into a commit.';
+      return 'Calling beats folding — with a short stack-to-pot ratio, strong hands usually put the rest in.';
     }
-    return 'Calling beats folding — you have enough equity or price to continue.';
+    return 'Calling beats folding — you have enough chance of winning (or a good enough price) to continue.';
   }
   if (recommended === 'check') {
-    return 'Checking beats betting — control the pot or avoid auto-firing a weak board.';
+    return 'Checking beats betting — keep the pot smaller or avoid firing automatically on a dangerous board.';
   }
   if (recommended === 'bet' || recommended === 'raise' || recommended === 'allin') {
     if (reasonCode.includes('3BET') || c.includes('3bet')) {
-      return 'Raising beats calling — 3-betting grows the pot with a clear plan instead of flatting.';
+      return 'Re-raising beats calling — grow the pot with a clear plan instead of just calling.';
     }
     if (c.includes('rfi') || reasonCode.includes('OPEN')) {
-      return 'Raising beats limping or folding — open for value (or fold trash), never limp first-in.';
+      return 'Raising beats limping or folding — raise hands worth playing first-in, or fold; do not limp.';
     }
     if (c.includes('semi-bluff') || c.includes('draw') || reasonCode.includes('DRAW')) {
-      return 'Betting/raising beats checking — deny equity and realize fold equity with your draw.';
+      return 'Betting or raising beats checking — you can win right away if they fold, and you still have outs if called.';
     }
     if (reasonCode.includes('VALUE') || c.includes('value')) {
-      return 'Betting/raising beats checking — worse hands can still call, so get value in.';
+      return 'Betting or raising beats checking — weaker hands can still call, so get paid when you are ahead.';
     }
-    return 'Betting/raising beats checking or calling — apply pressure and build the pot when ahead.';
+    return 'Betting or raising beats checking or calling — apply pressure and build the pot when you are ahead.';
   }
   return 'Stick to the recommended action — it best matches the fundamentals for this spot.';
 }
@@ -163,19 +210,21 @@ function buildDetails(args: {
 }): string[] {
   const details: string[] = [];
   details.push(
-    `You're in ${args.position} with ${HAND_CLASS_PLAIN[args.handClass]}.`,
+    `You're in ${positionPlain(args.position)} with ${HAND_CLASS_PLAIN[args.handClass]}.`,
   );
 
   if (args.potOdds !== undefined && args.potOdds > 0) {
     details.push(
-      `Pot odds: you need ~${formatPct(args.potOdds)} equity to call.`,
+      `To call profitably you need roughly ${formatPct(args.potOdds)} chance of winning (that is your pot odds).`,
     );
   }
 
   if (args.spr !== undefined && Number.isFinite(args.spr)) {
     const band = args.sprBand ?? sprBandFromValue(args.spr);
     const n = args.spr >= 10 ? args.spr.toFixed(0) : args.spr.toFixed(1);
-    details.push(`SPR ≈ ${n} (${band}) — ${sprImplication(band)}.`);
+    details.push(
+      `Stack-to-pot ratio ≈ ${n} (${sprBandPlain(band)}) — your stack is about ${n}× the pot; ${sprImplication(band)}.`,
+    );
   }
 
   details.push(actionLessonBullet(args.recommended, args.reasonCode, args.concepts));
@@ -242,7 +291,11 @@ function recommendPreflop(input: RecommendInput, pos: Position, handClass: HandC
   // positionStrength indices but are OOP vs opens — do not treat blinds as IP).
   const ip = pos === 'BTN' || pos === 'CO';
 
-  const concepts: string[] = [`Position: ${pos}`, `Hand: ${key}`, `Hand class: ${handClass}`];
+  const concepts: string[] = [
+    `Seat: ${positionPlain(pos)}`,
+    `Your cards: ${key}`,
+    `Hand strength: ${handClassChip(handClass)}`,
+  ];
   const sprVal = spr(input.hero.stack, Math.max(1, input.pot));
   const openerIsLate = input.openerIsLate ?? true;
   const bucket = preflopContinueBucket(pos, key, facing, ip, openerIsLate);
@@ -290,7 +343,7 @@ function recommendPreflop(input: RecommendInput, pos: Position, handClass: HandC
 
   if (facing === 'threeBet') {
     const odds = potOdds(input.pot, input.toCall);
-    concepts.push(`Pot odds: ${formatPct(odds)}`);
+    concepts.push(`Need ~${formatPct(odds)} to call`);
     if (bucket === 'fourBet') {
       const chips = chipSizeFromBb(bb, input.currentBet / bb * 2.2, input.toCall);
       return adviceOf({
@@ -331,7 +384,7 @@ function recommendPreflop(input: RecommendInput, pos: Position, handClass: HandC
 
   // facing open
   const odds = potOdds(input.pot, input.toCall);
-  concepts.push(`Pot odds: ${formatPct(odds)}`);
+  concepts.push(`Need ~${formatPct(odds)} to call`);
 
   if (bucket === 'threeBet') {
     const isValue = VALUE_3BET.has(key);
@@ -405,10 +458,10 @@ function recommendPostflop(input: RecommendInput, pos: Position, handClass: Hand
   const heroIsPfr = input.heroIsPfr ?? input.toCall === 0;
   const multiway = input.villainsInHand >= 2;
   const concepts: string[] = [
-    `Position: ${pos}`,
-    `Hand class: ${handClass}`,
-    `SPR ≈ ${sprVal.toFixed(1)} (${band})`,
-    `Board: ${boardTags.join('+') || 'n/a'}`,
+    `Seat: ${positionPlain(pos)}`,
+    `Hand strength: ${handClassChip(handClass)}`,
+    `Stack-to-pot ≈ ${sprVal.toFixed(1)}× (${sprBandPlain(band)})`,
+    `Board: ${boardTags.join(', ') || 'n/a'}`,
   ];
   if (multiway) concepts.push('Multiway');
 
@@ -416,10 +469,10 @@ function recommendPostflop(input: RecommendInput, pos: Position, handClass: Hand
   const cardsToCome: 1 | 2 =
     input.street === 'flop' ? 2 : input.street === 'turn' ? 1 : 1;
   const drawEq = outs > 0 ? outsToEquity(outs, cardsToCome) : 0;
-  if (outs > 0) concepts.push(`~${outs} outs → ~${formatPct(drawEq)} equity`);
+  if (outs > 0) concepts.push(`~${outs} cards help you (~${formatPct(drawEq)} win chance)`);
 
   const odds = input.toCall > 0 ? potOdds(input.pot, input.toCall) : 0;
-  if (input.toCall > 0) concepts.push(`Pot odds: ${formatPct(odds)}`);
+  if (input.toCall > 0) concepts.push(`Need ~${formatPct(odds)} to call`);
 
   const street = input.street === 'showdown' || input.street === 'handOver' ? 'river' : input.street;
   const betFrac = input.pot > 0 && input.toCall > 0 ? input.toCall / input.pot : 0;
