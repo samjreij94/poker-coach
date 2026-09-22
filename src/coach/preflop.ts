@@ -148,7 +148,7 @@ export function preflopContinueBucket(
   if (VALUE_3BET.has(key) || (inPosition && VALUE_3BET_WIDE.has(key))) {
     return 'threeBet';
   }
-  if (inPosition && BLUFF_3BET.has(key) && (pos === 'BTN' || pos === 'BB' || pos === 'CO')) {
+  if (inPosition && BLUFF_3BET.has(key) && (pos === 'BTN' || pos === 'CO')) {
     return 'threeBet';
   }
   if (pos === 'BB') {

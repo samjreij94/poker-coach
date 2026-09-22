@@ -245,16 +245,51 @@ export function gradeAction(
     taken === 'bet' &&
     boardTags.includes('monotone')
   ) {
+    // A1 ex.13: oversized/auto c-bet on monotone with strongMade → OK (prefer check)
+    if (advice.handClass === 'strongMade' || advice.handClass === 'nuts') {
+      return { grade: 'OK', why: COACH_STRINGS.FL_CBET_MONO_LEAK, advice };
+    }
     return { grade: 'Leak', why: COACH_STRINGS.FL_CBET_MONO_LEAK, advice };
   }
 
+  // A1 ex.5: SB flats when 3-bet preferred → OK with SB-flat copy
+  if (
+    street === 'preflop' &&
+    advice.position === 'SB' &&
+    advice.recommended === 'raise' &&
+    taken === 'call' &&
+    (code === 'PF_3BET_BLUFF_GOOD' ||
+      code === 'PF_3BET_VALUE_GOOD' ||
+      advice.concepts.includes('3bet'))
+  ) {
+    return { grade: 'OK', why: COACH_STRINGS.PF_FLAT_SB_OK, advice };
+  }
+
+  // A1 ex.17: calling a strong draw when XR is primary → still Good (odds continue)
+  if (
+    !match &&
+    advice.recommended === 'raise' &&
+    taken === 'call' &&
+    advice.handClass === 'strongDraw'
+  ) {
+    return { grade: 'Good', why: COACH_STRINGS.FL_CALL_ODDS_GOOD, advice };
+  }
+
   if (!match && advice.recommended === 'fold' && (taken === 'call' || taken === 'raise' || taken === 'bet' || taken === 'allin')) {
+    let why = COACH_STRINGS.GEN_LEAK_DEFAULT;
+    if (code === 'FL_CALL_NO_ODDS_LEAK' || code === 'SPR_HIGH_LIGHT_CALL_LEAK' || code === 'TN_CALL_MISSED_LEAK') {
+      why = COACH_STRINGS[code];
+    } else if (street === 'turn' && (advice.handClass === 'air' || advice.handClass === 'weakDraw')) {
+      why = COACH_STRINGS.TN_CALL_MISSED_LEAK;
+    } else if (code === 'PF_FACE_3BET_FOLD_GOOD' || code === 'PF_FLAT_TOO_WIDE') {
+      why =
+        code === 'PF_FACE_3BET_FOLD_GOOD'
+          ? COACH_STRINGS.PF_FACE_3BET_CALL_LEAK
+          : COACH_STRINGS.PF_FLAT_TOO_WIDE;
+    }
     return {
-      grade: tookN === 'aggressive' ? 'Leak' : 'Leak',
-      why:
-        code === 'FL_CALL_NO_ODDS_LEAK' || code === 'SPR_HIGH_LIGHT_CALL_LEAK'
-          ? COACH_STRINGS[code]
-          : COACH_STRINGS.GEN_LEAK_DEFAULT,
+      grade: 'Leak',
+      why,
       advice,
     };
   }

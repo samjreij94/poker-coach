@@ -13,7 +13,7 @@ import {
 import { whyFor } from './strings';
 import type { ReasonCode, BoardTag, SprBand, SizeRangeSpec } from './types';
 import { outsToEquity, potOdds, spr, formatPct } from '../poker/odds';
-import { positionForSeat, positionStrength } from '../poker/positions';
+import { positionForSeat } from '../poker/positions';
 import type {
   ActionType,
   Card,
@@ -122,17 +122,14 @@ function recommendPreflop(input: RecommendInput, pos: Position, handClass: HandC
   const key = handKey(input.hole);
   const bb = input.bigBlind ?? 2;
   const facing = classifyPreflopFacing(input.toCall, input.currentBet, bb);
-  const inPosition = positionStrength(pos) >= positionStrength('CO') || pos === 'BTN';
-  // SB/BB are OOP vs steals; BTN is IP
-  const ip =
-    pos === 'BTN' ||
-    (pos === 'CO' && facing !== 'none') ||
-    (facing === 'threeBet' && positionStrength(pos) >= positionStrength('CO'));
+  // Only BTN/CO are truly IP for continue-bucket purposes (SB/BB have higher
+  // positionStrength indices but are OOP vs opens — do not treat blinds as IP).
+  const ip = pos === 'BTN' || pos === 'CO';
 
   const concepts: string[] = [`Position: ${pos}`, `Hand: ${key}`, `Hand class: ${handClass}`];
   const sprVal = spr(input.hero.stack, Math.max(1, input.pot));
   const openerIsLate = input.openerIsLate ?? true;
-  const bucket = preflopContinueBucket(pos, key, facing, ip || inPosition, openerIsLate);
+  const bucket = preflopContinueBucket(pos, key, facing, ip, openerIsLate);
 
   if (facing === 'none') {
     // BB check option when everyone folded (rare in 6-max cash engine)
