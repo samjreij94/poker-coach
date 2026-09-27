@@ -1,88 +1,61 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useState } from 'react';
+import SoloApp from './SoloApp';
+import { Lobby } from './components/lobby/Lobby';
+import { RoomApp } from './components/room/RoomApp';
 import {
-  ActionBar,
-  CoachStrip,
-  HandResultSplash,
-  Table,
-  type HeroActionPayload,
-} from './components/table';
-import { usePokerCoach } from './hooks/usePokerCoach';
-import { normalizeHandResult } from './types/handResult';
-import './App.css';
+  loadSession,
+  roomCodeFromUrl,
+  saveSession,
+  setRoomInUrl,
+} from './multiplayer/config';
+
+type Mode =
+  | { kind: 'lobby'; code: string | null; notice: string | null }
+  | { kind: 'solo' }
+  | { kind: 'room'; code: string; name: string };
+
+function initialMode(): Mode {
+  const urlCode = roomCodeFromUrl();
+  const session = loadSession();
+  // Refresh / reopen: auto-rejoin the active room (token lives in localStorage).
+  if (session && (!urlCode || urlCode === session.code)) {
+    return { kind: 'room', code: session.code, name: session.name };
+  }
+  return { kind: 'lobby', code: urlCode, notice: null };
+}
 
 /**
- * Felt UI shell over Dealer's usePokerCoach API (PublicTableView + coach).
- * Hand-over splash from view.handResult (Dealer HandResult → normalize → splash).
+ * Top-level mode switch: Lobby → Solo (unchanged trainer) or Room (multiplayer).
  */
 function App() {
-  const {
-    view,
-    advice,
-    lastGrade,
-    coachEnabled,
-    setCoachEnabled,
-    newHand,
-    resetStacks,
-    heroAct,
-  } = usePokerCoach(0);
+  const [mode, setMode] = useState<Mode>(initialMode);
 
-  const dealt = useRef(false);
-  useEffect(() => {
-    if (dealt.current) return;
-    dealt.current = true;
-    newHand();
-  }, [newHand]);
+  const enterRoom = useCallback((code: string, name: string) => {
+    saveSession({ code, name });
+    setRoomInUrl(code);
+    setMode({ kind: 'room', code, name });
+  }, []);
 
-  const splash = useMemo(
-    () => normalizeHandResult(view.handResult, view.board),
-    [view.handResult, view.board],
-  );
-  const showSplash = splash != null;
+  const exitRoom = useCallback((message?: string) => {
+    saveSession(null);
+    setRoomInUrl(null);
+    setMode({ kind: 'lobby', code: null, notice: message ?? null });
+  }, []);
 
-  const onAction = (action: HeroActionPayload) => {
-    heroAct(action);
-  };
-
+  if (mode.kind === 'solo') return <SoloApp />;
+  if (mode.kind === 'room') {
+    return <RoomApp key={mode.code} code={mode.code} name={mode.name} onExit={exitRoom} />;
+  }
   return (
-    <div className="pc-app">
-      <CoachStrip
-        advice={coachEnabled ? advice : null}
-        grade={coachEnabled ? lastGrade : null}
-        collapsed={!coachEnabled || (!advice && !lastGrade)}
-      />
-
-      <div className="pc-app__tools">
-        <button type="button" className="pc-app__tool" onClick={newHand}>
-          Next hand
-        </button>
-        <button type="button" className="pc-app__tool" onClick={resetStacks}>
-          Reset stacks
-        </button>
-        <button
-          type="button"
-          className="pc-app__tool"
-          onClick={() => setCoachEnabled(!coachEnabled)}
-          aria-pressed={coachEnabled}
-        >
-          Coach {coachEnabled ? 'On' : 'Off'}
-        </button>
-      </div>
-
-      <main className="pc-app__table">
-        <Table view={view} />
-        {showSplash && splash ? (
-          <HandResultSplash result={splash} onNextHand={newHand} />
-        ) : null}
-      </main>
-
-      {!showSplash ? (
-        <ActionBar
-          legal={view.legalActions}
-          onAction={onAction}
-          disabled={!view.legalActions}
-        />
-      ) : null}
-    </div>
+    <Lobby
+      initialCode={mode.code}
+      notice={mode.notice}
+      onSolo={() => {
+        setRoomInUrl(null);
+        setMode({ kind: 'solo' });
+      }}
+      onEnterRoom={enterRoom}
+    />
   );
 }
 
