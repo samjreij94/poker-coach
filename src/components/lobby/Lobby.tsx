@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { createRoomCode, loadName } from '../../multiplayer/config';
+import { createRoomCode, fetchRoomInfo, loadName, loadSeatToken } from '../../multiplayer/config';
 import {
   MAX_NAME_LENGTH,
   ROOM_CODE_ALPHABET,
@@ -59,9 +59,26 @@ export function Lobby({ onSolo, onEnterRoom, initialCode, notice }: LobbyProps) 
     }
   };
 
-  const onJoin = (e: FormEvent) => {
+  const onJoin = async (e: FormEvent) => {
     e.preventDefault();
-    if (!trimmedName || !isValidRoomCode(code)) return;
+    if (!trimmedName || !isValidRoomCode(code) || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const info = await fetchRoomInfo(code);
+      if (!info) {
+        setErr(`No room ${code}. Check the code with your host.`);
+        setBusy(false);
+        return;
+      }
+      if (info.seatsFree <= 0 && !loadSeatToken(code)) {
+        setErr(`Room ${code} is full.`);
+        setBusy(false);
+        return;
+      }
+    } catch {
+      // Lookup failed (network/CORS): fall through; the socket reports real errors.
+    }
     onEnterRoom(code, trimmedName);
   };
 
@@ -167,9 +184,9 @@ export function Lobby({ onSolo, onEnterRoom, initialCode, notice }: LobbyProps) 
           <button
             type="submit"
             className="pc-lobby__btn pc-lobby__btn--primary pc-lobby__btn--center"
-            disabled={!trimmedName || !isValidRoomCode(code)}
+            disabled={!trimmedName || !isValidRoomCode(code) || busy}
           >
-            Join room
+            {busy ? 'Checking…' : 'Join room'}
           </button>
           <button type="button" className="pc-lobby__link" onClick={() => setScreen('home')}>
             Back

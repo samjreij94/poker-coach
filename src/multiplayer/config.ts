@@ -4,6 +4,7 @@
  */
 import {
   normalizeRoomCode,
+  type RoomInfoResponse,
   roomHttpUrl as protoHttpUrl,
   roomWsUrl as protoWsUrl,
 } from './protocol';
@@ -32,6 +33,18 @@ export async function createRoomCode(signal?: AbortSignal): Promise<string> {
   const body = (await res.json()) as { code?: unknown };
   if (typeof body.code !== 'string' || !body.code) throw new Error('Bad create response');
   return normalizeRoomCode(body.code);
+}
+
+/**
+ * `GET /api/rooms/:code` → room info, or null when the room does not exist (404 / exists:false).
+ * Throws on network failure (caller may fall through to the socket, which reports errors too).
+ */
+export async function fetchRoomInfo(code: string, signal?: AbortSignal): Promise<RoomInfoResponse | null> {
+  const res = await fetch(roomHttpUrl(`/api/rooms/${encodeURIComponent(code)}`), { signal });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Room lookup failed (${res.status})`);
+  const info = (await res.json()) as RoomInfoResponse;
+  return info.exists ? info : null;
 }
 
 /** Share link on the current origin + Vite base path: `…/poker-coach/?room=CODE`. */

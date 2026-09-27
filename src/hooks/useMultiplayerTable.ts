@@ -95,14 +95,6 @@ function viewFromLobby(lobby: LobbyState | null): PublicTableView {
   };
 }
 
-/** Recompute heroOutcome from the recipient's seat so the splash is always per-viewer. */
-function perViewerResult(r: HandResult | null, heroSeat: number): HandResult | null {
-  if (!r) return r;
-  const heroWon = r.winners.some((w) => w.seat === heroSeat);
-  const heroOutcome = !heroWon ? 'lose' : r.winners.length > 1 ? 'split' : 'win';
-  return heroOutcome === r.heroOutcome ? r : { ...r, heroOutcome };
-}
-
 /**
  * Room-mode twin of usePokerCoach: same surface (view / advice / lastGrade /
  * coach toggle / newHand / heroAct) backed by the room server over WebSocket.
@@ -335,7 +327,7 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
     if (!handResult && base.street === 'handOver' && lastResult?.hand === base.handNumber) {
       handResult = lastResult.result;
     }
-    handResult = perViewerResult(handResult, base.heroSeat);
+    // Server's handResult is already worded per viewer (side pots etc.) — use as-is.
     return handResult === base.handResult ? base : { ...base, handResult };
   }, [tableView, lobby, lastResult]);
 
