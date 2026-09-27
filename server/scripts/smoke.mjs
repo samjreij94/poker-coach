@@ -6,6 +6,9 @@ import WebSocket from 'ws';
 const BASE = process.env.ROOM_SERVER_URL ?? 'http://localhost:8787';
 const HANDS = Number(process.env.HANDS ?? 3);
 const WS_BASE = BASE.replace(/^http/, 'ws');
+const ORIGIN = process.env.ORIGIN ?? 'http://localhost:5173';
+let raiseToChecks = 0;
+let sawServerNow = false;
 
 const fail = (m) => {
   console.error('SMOKE FAIL:', m);
@@ -13,7 +16,20 @@ const fail = (m) => {
 };
 setTimeout(() => fail('timeout'), 60_000).unref();
 
-const res = await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { Origin: 'https://samjreij94.github.io' } });
+const bad = await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { Origin: 'https://evil.example' } });
+if (bad.status !== 403) fail(`disallowed origin got ${bad.status}`);
+console.log('disallowed origin POST -> 403 ✓');
+await new Promise((resolve) => {
+  const ws = new WebSocket(`${WS_BASE}/room/ABCDEF`, { origin: 'https://evil.example' });
+  ws.on('unexpected-response', (_req, r) => {
+    console.log(`disallowed origin WS -> ${r.statusCode} ${r.statusCode === 403 ? '✓' : '✗'}`);
+    if (r.statusCode !== 403) fail('ws origin');
+    resolve();
+  });
+  ws.on('open', () => fail('ws with bad origin opened'));
+  ws.on('error', () => {});
+});
+const res = await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { Origin: ORIGIN } });
 if (!res.ok) fail(`create ${res.status}`);
 console.log('CORS:', res.headers.get('access-control-allow-origin'));
 const { code } = await res.json();
@@ -30,7 +46,7 @@ let started = false;
 
 function open(name, i) {
   return new Promise((resolve) => {
-    const ws = new WebSocket(`${WS_BASE}/room/${code}`);
+    const ws = new WebSocket(`${WS_BASE}/room/${code}`, { origin: ORIGIN });
     const c = { name, ws, seat: null, token: null, i, lastHand: 0, lastActed: '' };
     ws.on('open', () => {
       ws.send(JSON.stringify({ type: 'join', code, name }));
@@ -58,6 +74,12 @@ function onMsg(c, msg, resolveJoin) {
     }
   } else if (msg.type === 'table') {
     const v = msg.view;
+    if (typeof msg.serverNow === 'number') sawServerNow = true;
+    if (c.pendingRaiseTo && v.log.includes(c.pendingRaiseTo)) {
+      raiseToChecks++;
+      console.log(`  raiseTo ok: "${c.pendingRaiseTo}"`);
+      c.pendingRaiseTo = null;
+    }
     const sd = v.street === 'handOver' && v.handResult?.kind === 'showdown';
     for (const p of v.players) {
       if (p.holeCards && p.seat !== msg.yourSeat && !(sd && !p.folded)) {
@@ -70,16 +92,29 @@ function onMsg(c, msg, resolveJoin) {
       if (key === c.lastActed) return;
       c.lastActed = key;
       const la = v.legalActions;
-      const action = la.canCheck ? { type: 'check' } : la.canCall ? { type: 'call' } : { type: 'allin' };
+      let action = la.canCheck ? { type: 'check' } : la.canCall ? { type: 'call' } : { type: 'allin' };
+      if (la.canRaise && la.betThisStreet > 0 && la.minRaiseTo < la.allInTo && raiseToChecks < 2 && !c.pendingRaiseTo) {
+        action = { type: 'raise', raiseTo: la.minRaiseTo };
+        c.pendingRaiseTo = `${c.name} raises to $${la.minRaiseTo}`;
+      }
       actionsSent++;
       c.ws.send(JSON.stringify({ type: 'action', action, handNumber: v.handNumber }));
     }
   }
 }
 
-function finish() {
-  console.log(`SMOKE OK: ${handsDone} hands, ${actionsSent} human actions, ${leaksChecked} visible hole-card entries checked`);
+async function finish() {
   for (const c of clients) c.ws.close();
+  if (!sawServerNow) fail('table frames missing serverNow');
+  // Rate limit: create budget is 10/min per IP (1 already used above)
+  let limited = 0;
+  for (let i = 0; i < 12; i++) {
+    const r = await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { Origin: ORIGIN } });
+    if (r.status === 429) limited++;
+  }
+  console.log(`rate limit: ${limited} of 12 extra creates got 429 ${limited > 0 ? '✓' : '✗'}`);
+  if (!limited) fail('no 429');
+  console.log(`SMOKE OK: ${handsDone} hands, ${actionsSent} human actions, ${raiseToChecks} raiseTo checks, ${leaksChecked} visible hole-card entries checked, serverNow present`);
   setTimeout(() => process.exit(0), 200);
 }
 

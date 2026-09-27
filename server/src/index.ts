@@ -19,11 +19,16 @@ import {
   ROOM_CODE_LENGTH,
   type ServerMessage,
 } from '../../src/multiplayer/protocol';
+import { corsHeaders, clientIp, json, originAllowed, rateLimit, tooMany } from './http';
 import { Room, type RoomDeps, type RoomSnapshot } from './room';
 
 export interface Env {
   ROOMS: DurableObjectNamespace<RoomDO>;
-  /** Optional: comma-separated allowed origins for CORS (default "*"). */
+  /**
+   * Comma-separated browser origins allowed for CORS and WebSocket upgrades
+   * (e.g. "https://samjreij94.github.io,http://localhost:5173"). "*" = any.
+   * Requests without an Origin header (non-browser tools) are allowed.
+   */
   ALLOWED_ORIGINS?: string;
 }
 
@@ -62,26 +67,6 @@ const deps: RoomDeps = {
   randomId: () => randomHex(8),
 };
 
-function corsHeaders(req: Request, env: Env): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  const allowed = (env.ALLOWED_ORIGINS ?? '*').split(',').map((s) => s.trim()).filter(Boolean);
-  const allow = allowed.includes('*') ? '*' : allowed.includes(origin) ? origin : allowed[0] ?? '*';
-  return {
-    'Access-Control-Allow-Origin': allow,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  };
-}
-
-function json(req: Request, env: Env, body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(req, env) },
-  });
-}
-
 function stubFor(env: Env, code: string) {
   return env.ROOMS.get(env.ROOMS.idFromName(code));
 }
@@ -98,7 +83,12 @@ export default {
       return new Response('ok', { headers: corsHeaders(req, env) });
     }
 
+    if (!originAllowed(req, env)) {
+      return json(req, env, { error: 'Origin not allowed' }, 403);
+    }
+
     if (path === '/api/rooms' && req.method === 'POST') {
+      if (!rateLimit('create', clientIp(req))) return tooMany(req, env);
       for (let i = 0; i < 8; i++) {
         const code = generateRoomCode();
         const res = await stubFor(env, code).fetch('https://room/init', {
@@ -112,6 +102,7 @@ export default {
 
     const info = path.match(/^\/api\/rooms\/([^/]+)$/);
     if (info && req.method === 'GET') {
+      if (!rateLimit('join', clientIp(req))) return tooMany(req, env);
       const code = normalizeRoomCode(decodeURIComponent(info[1]!));
       if (!isValidRoomCode(code)) return json(req, env, { error: 'Bad room code' }, 400);
       const res = await stubFor(env, code).fetch('https://room/info', { headers: { 'x-room-code': code } });
@@ -123,6 +114,7 @@ export default {
       if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
         return json(req, env, { error: 'Expected WebSocket upgrade' }, 426);
       }
+      if (!rateLimit('join', clientIp(req))) return tooMany(req, env);
       const code = normalizeRoomCode(decodeURIComponent(ws[1]!));
       if (!isValidRoomCode(code)) return json(req, env, { error: 'Bad room code' }, 400);
       const headers = new Headers(req.headers);

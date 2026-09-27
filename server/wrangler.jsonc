@@ -8,8 +8,9 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO"] }],
   "vars": {
-    // Comma-separated list, e.g. "https://samjreij94.github.io,http://localhost:5173"
-    "ALLOWED_ORIGINS": "*"
+    // Browser origins allowed for CORS + WebSocket upgrades (comma-separated; "*" = any).
+    // GitHub Pages prod + Vite dev (5173) + Vite preview (4173).
+    "ALLOWED_ORIGINS": "https://samjreij94.github.io,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
   },
   "observability": { "enabled": true }
 }
