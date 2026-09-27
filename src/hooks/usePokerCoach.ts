@@ -1,9 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { gradeAction, recommend } from '../coach';
-import type { CoachAdvice, CoachGrade, PlayerAction } from '../poker';
+import type { CoachAdvice, CoachGrade } from '../poker';
 import {
   applyAction,
+  chipsAdded,
   createInitialState,
+  getLegalActions,
+  heroActionToPlayerAction,
   IllegalActionError,
   resetStacks,
   runBotsUntilHero,
@@ -11,6 +14,7 @@ import {
   streetPot,
   toPublicView,
   type GameState,
+  type HeroActionInput,
   type PublicTableView,
 } from '../poker';
 
@@ -26,8 +30,12 @@ export interface PokerCoachApi {
   /** Start / deal next hand (runs bots until hero acts) */
   newHand: () => void;
   resetStacks: () => void;
-  /** Hero action — applies, grades, then runs bots */
-  heroAct: (action: PlayerAction) => void;
+  /**
+   * Hero action — applies, grades, then runs bots.
+   * bet/raise `amount` = street total ("raise to"), exactly as LegalActions
+   * offers it (minBet / minRaiseTo / quickSizes[].amount).
+   */
+  heroAct: (action: HeroActionInput) => void;
   /** Raw state escape hatch for advanced UI */
   state: GameState;
 }
@@ -80,7 +88,7 @@ export function usePokerCoach(heroSeat = 3): PokerCoachApi {
   }, []);
 
   const heroAct = useCallback(
-    (action: PlayerAction) => {
+    (input: HeroActionInput) => {
       setState((s) => {
         if (s.actingSeat < 0) return s;
         const hero = s.players[s.actingSeat];
@@ -103,7 +111,10 @@ export function usePokerCoach(heroSeat = 3): PokerCoachApi {
           minRaise: s.minRaise,
           villainsInHand: villains,
         });
-        const putIn = action.amount;
+        // UI sizes are street totals; the engine wants chips added.
+        const action = heroActionToPlayerAction(input, hero.betThisStreet);
+        const legal = getLegalActions(s);
+        const putIn = legal ? chipsAdded(action, legal) : action.amount;
         setLastGrade(gradeAction(adv, action.type, putIn));
 
         try {

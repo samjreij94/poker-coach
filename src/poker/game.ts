@@ -75,18 +75,61 @@ export interface PublicPlayerView {
   holeCards: Card[] | null;
 }
 
+/**
+ * Legal options for the acting seat.
+ *
+ * SIZE CONVENTION (read this):
+ * - Every UI-facing size here — `minBet`, `maxBet`, `minRaiseTo`,
+ *   `maxRaiseTo`, `allInTo`, `quickSizes[].amount` — is a **"to" total**: the
+ *   actor's street bet AFTER the action (what a player says: "raise to 10").
+ *   UIs send these back unchanged as `{ type: 'bet'|'raise', amount }`
+ *   (a {@link HeroActionInput}); the adapter converts with
+ *   {@link heroActionToPlayerAction} / {@link raiseToToAmount}.
+ * - The ENGINE's `PlayerAction.amount` (applyAction) is **chips added on this
+ *   action**. The `*Add` fields below give those equivalents directly.
+ * - `add = to - betThisStreet`.
+ */
 export interface LegalActions {
   canFold: boolean;
   canCheck: boolean;
+  /** True whenever there is something to call (a short stack's call is an all-in call). */
   canCall: boolean;
+  /** Chips to add to call (capped at stack). */
   callAmount: number;
   canBet: boolean;
   canRaise: boolean;
+  /** Min opening bet, as a street total ("bet to"). */
   minBet: number;
+  /** Max opening bet (all-in), as a street total. */
   maxBet: number;
+  /** Min raise, as a street total ("raise to"). Capped at all-in. */
   minRaiseTo: number;
+  /** Max raise (all-in), as a street total. */
   maxRaiseTo: number;
-  quickSizes: { label: string; amount: number }[];
+  /**
+   * Preset sizes (fractions of pot), `amount` = street total ("to").
+   * Never includes a size equal to all-in (use `canAllIn`/`allInTo`), so a UI
+   * that renders its own All-in button shows it once.
+   */
+  quickSizes: { label: string; amount: number; add?: number }[];
+  /** Actor's chips already in front of them this street. */
+  betThisStreet?: number;
+  /** Actor has chips to shove (all-in bet, raise, or call). */
+  canAllIn?: boolean;
+  /** All-in as a street total (= betThisStreet + stack). */
+  allInTo?: number;
+  /** Engine amounts (chips ADDED on this action) for applyAction. */
+  minBetAdd?: number;
+  minRaiseAdd?: number;
+  /** = stack */
+  maxAdd?: number;
+}
+
+/** What UIs send (ActionBar HeroActionPayload): bet/raise `amount` is a street total ("to"). */
+export interface HeroActionInput {
+  type: PlayerAction['type'];
+  /** For bet/raise: street total after the action ("raise to"). Ignored otherwise. */
+  amount?: number;
 }
 
 export class IllegalActionError extends Error {
@@ -910,19 +953,19 @@ export function validateAction(state: GameState, action: PlayerAction): string |
       return legal.callAmount > 0 ? null : 'Nothing to call (check instead)';
     case 'allin':
       return legal.maxBet > 0 ? null : 'No chips to put in';
+    // bet/raise amount here = chips ADDED (engine convention)
     case 'bet': {
       if (!legal.canBet) return 'Cannot bet facing a bet (raise instead)';
       if (!hasAmt || !Number.isInteger(amt)) return 'Bet needs a whole-chip amount';
-      if (amt > legal.maxBet) return 'Cannot bet more than stack';
-      if (amt < legal.minBet && amt !== legal.maxBet) return `Min bet is $${legal.minBet}`;
+      if (amt > actor.stack) return 'Cannot bet more than stack';
+      if (amt < legal.minBetAdd! && amt !== actor.stack) return `Min bet is to $${legal.minBet}`;
       return null;
     }
     case 'raise': {
       if (!legal.canRaise) return 'Cannot raise here';
       if (!hasAmt || !Number.isInteger(amt)) return 'Raise needs a whole-chip amount';
       if (amt > actor.stack) return 'Cannot bet more than stack';
-      const minPut = legal.minRaiseTo - actor.betThisStreet;
-      if (amt < minPut && amt !== actor.stack) {
+      if (amt < legal.minRaiseAdd! && amt !== actor.stack) {
         return `Min raise is to $${legal.minRaiseTo}`;
       }
       return null;
@@ -1040,11 +1083,14 @@ export function getLegalActions(state: GameState): LegalActions | null {
   if (!canAct(actor)) return null;
   const callAmt = Math.max(0, state.currentBet - actor.betThisStreet);
   const pot = streetPot(state);
-  const minBet = state.config.bigBlind;
-  const minRaiseTo = state.currentBet + state.minRaise;
+  const bb = state.config.bigBlind;
+  const inFront = actor.betThisStreet;
   const maxPut = actor.stack;
+  const minBetAdd = Math.min(bb, maxPut);
+  const minRaiseAdd = Math.min(callAmt + state.minRaise, maxPut);
 
-  const quickSizes: { label: string; amount: number }[] = [];
+  // Sizes computed as chips added, exposed as street totals ("to").
+  const quickSizes: { label: string; amount: number; add: number }[] = [];
   const fracs: [string, number][] = [
     ['⅓ pot', 1 / 3],
     ['½ pot', 0.5],
@@ -1052,38 +1098,87 @@ export function getLegalActions(state: GameState): LegalActions | null {
     ['pot', 1],
   ];
   for (const [label, f] of fracs) {
-    let amount: number;
+    let add: number;
     if (callAmt === 0) {
-      amount = Math.max(minBet, Math.round(pot * f));
+      add = Math.max(bb, Math.round(pot * f));
     } else {
-      amount = callAmt + Math.max(state.minRaise, Math.round((pot + callAmt) * f));
+      add = callAmt + Math.max(state.minRaise, Math.round((pot + callAmt) * f));
     }
-    amount = Math.min(amount, maxPut);
-    if (
-      (amount > callAmt &&
-        amount >= (callAmt === 0 ? minBet : callAmt + state.minRaise)) ||
-      amount === maxPut
-    ) {
-      quickSizes.push({ label, amount });
-    }
-  }
-  if (maxPut > 0) {
-    quickSizes.push({ label: 'All-in', amount: maxPut });
+    // A size at/over the stack is just all-in — the UI's All-in button covers it.
+    if (add >= maxPut) continue;
+    if (add <= callAmt) continue;
+    if (quickSizes.some((q) => q.add === add)) continue;
+    quickSizes.push({ label, amount: inFront + add, add });
   }
 
   return {
     canFold: callAmt > 0,
     canCheck: callAmt === 0,
-    canCall: callAmt > 0 && callAmt < actor.stack,
+    canCall: callAmt > 0,
     callAmount: Math.min(callAmt, actor.stack),
     canBet: callAmt === 0 && actor.stack > 0,
     canRaise: callAmt > 0 && actor.stack > callAmt,
-    minBet,
-    maxBet: maxPut,
-    minRaiseTo: Math.min(minRaiseTo, actor.betThisStreet + maxPut),
-    maxRaiseTo: actor.betThisStreet + maxPut,
+    minBet: inFront + minBetAdd,
+    maxBet: inFront + maxPut,
+    minRaiseTo: inFront + minRaiseAdd,
+    maxRaiseTo: inFront + maxPut,
     quickSizes,
+    betThisStreet: inFront,
+    canAllIn: maxPut > 0,
+    allInTo: inFront + maxPut,
+    minBetAdd,
+    minRaiseAdd,
+    maxAdd: maxPut,
   };
+}
+
+/**
+ * Convert a street total ("raise/bet to N") into the engine amount (chips
+ * added on this action) for the acting seat.
+ */
+export function raiseToToAmount(state: GameState, raiseTo: number): number {
+  if (state.actingSeat < 0) return raiseTo;
+  return raiseTo - state.players[state.actingSeat]!.betThisStreet;
+}
+
+/** Chips an engine action adds (for coach grading): bet/raise amount, call, or all-in. */
+export function chipsAdded(action: PlayerAction, legal: LegalActions): number | undefined {
+  switch (action.type) {
+    case 'bet':
+    case 'raise':
+      return action.amount;
+    case 'call':
+      return legal.callAmount;
+    case 'allin':
+      return legal.maxAdd;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Adapter boundary: UI action (bet/raise `amount` = street total, as offered by
+ * LegalActions) -> engine PlayerAction (amount = chips added). `inFront` is the
+ * actor's betThisStreet (LegalActions.betThisStreet, or state).
+ */
+export function heroActionToPlayerAction(
+  action: HeroActionInput,
+  inFront: number,
+): PlayerAction {
+  switch (action.type) {
+    case 'bet':
+    case 'raise':
+      return {
+        type: action.type,
+        amount: action.amount == null ? undefined : action.amount - inFront,
+      };
+    case 'call':
+      return { type: 'call' };
+    case 'allin':
+      return { type: 'allin' };
+    default:
+      return { type: action.type };
+  }
 }
 
 function handResultForViewer(state: GameState, viewerSeat: number): HandResult | null {

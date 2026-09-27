@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { gradeAction, recommend, recommendInputFromView } from '../coach';
-import type { CoachAdvice, CoachGrade, PlayerAction } from '../poker';
+import type { CoachAdvice, CoachGrade } from '../poker';
+import { chipsAdded, heroActionToPlayerAction, type HeroActionInput } from '../poker/game';
 import { positionForSeat } from '../poker/positions';
 import type { HandResult, PublicTableView } from '../poker/game';
 import {
@@ -344,13 +345,18 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
   }, [handNo]);
 
   const heroAct = useCallback(
-    (action: PlayerAction) => {
-      if (!tableView?.legalActions) return;
+    (action: HeroActionInput) => {
+      const legal = tableView?.legalActions;
+      if (!tableView || !legal) return;
+      // bet/raise sizes from LegalActions are street totals ("raise to"):
+      // send them as `raiseTo`; the server converts with its authoritative state.
+      const engine = heroActionToPlayerAction(action, legal.betThisStreet ?? 0);
       const input = recommendInputFromView(tableView);
-      if (input) setLastGrade(gradeAction(recommend(input), action.type, action.amount));
+      if (input) setLastGrade(gradeAction(recommend(input), engine.type, chipsAdded(engine, legal)));
+      const sized = action.type === 'bet' || action.type === 'raise';
       send({
         type: 'action',
-        action: { type: action.type, ...(action.amount != null ? { amount: action.amount } : {}) },
+        action: sized && action.amount != null ? { type: action.type, raiseTo: action.amount } : { type: action.type },
         handNumber: tableView.handNumber,
       });
     },

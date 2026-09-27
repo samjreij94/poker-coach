@@ -14,7 +14,12 @@ export type ActionType = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'allin';
 
 export interface PlayerAction {
   type: ActionType;
-  amount?: number; // total chips put in on this street for bets/raises, or call amount
+  /**
+   * ENGINE convention: chips ADDED on this action for bet/raise (not "raise
+   * to"); ignored for fold/check/call/allin. UIs work in "to" totals — convert
+   * with heroActionToPlayerAction / raiseToToAmount (src/poker/game.ts).
+   */
+  amount?: number;
 }
 
 export interface PlayerState {
