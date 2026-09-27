@@ -94,7 +94,7 @@ export function ActionBar({ legal, disabled = false, onAction }: ActionBarProps)
         ) : null}
       </div>
 
-      {legal.quickSizes.length > 0 && (legal.canBet || legal.canRaise) ? (
+      {legal.canAllIn && (legal.canBet || legal.canRaise) ? (
         <div className="pc-actions__sizes">
           {legal.quickSizes.map((s) => (
             <button

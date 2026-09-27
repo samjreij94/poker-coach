@@ -1,5 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { createRoomCode, fetchRoomInfo, loadName, loadSeatToken } from '../../multiplayer/config';
+import {
+  RateLimitedError,
+  createRoomCode,
+  fetchRoomInfo,
+  loadName,
+  loadSeatToken,
+} from '../../multiplayer/config';
 import {
   MAX_NAME_LENGTH,
   ROOM_CODE_ALPHABET,
@@ -51,7 +57,7 @@ export function Lobby({ onSolo, onEnterRoom, initialCode, notice }: LobbyProps) 
       onEnterRoom(newCode, trimmedName);
     } catch (ex) {
       setErr(
-        ex instanceof Error && ex.message.startsWith('Create')
+        ex instanceof RateLimitedError || (ex instanceof Error && ex.message.startsWith('Create'))
           ? ex.message
           : "Couldn't reach the room server. Check your connection and try again.",
       );
@@ -76,7 +82,12 @@ export function Lobby({ onSolo, onEnterRoom, initialCode, notice }: LobbyProps) 
         setBusy(false);
         return;
       }
-    } catch {
+    } catch (ex) {
+      if (ex instanceof RateLimitedError) {
+        setErr(ex.message);
+        setBusy(false);
+        return;
+      }
       // Lookup failed (network/CORS): fall through; the socket reports real errors.
     }
     onEnterRoom(code, trimmedName);

@@ -12,7 +12,8 @@
  *   PORT=8790 npx vite-node scripts/mock-room-server.mjs
  *
  * Uses a hand-rolled RFC6455 text-frame WebSocket (no `ws` dependency).
- * Simplifications: no hibernation/persistence, no action clock, instant bots.
+ * Simplifications: no hibernation/persistence, no origin checks / rate limits,
+ * deadline is advisory (no auto-action), instant bots.
  */
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -125,11 +126,18 @@ function broadcastLobby(room) { each(room, (p, c) => wsSend(c, lobbyFor(room, p)
 function tableFor(room, p) {
   const s = room.state;
   const acting = s.actingSeat >= 0 ? s.players[s.actingSeat] : null;
+  const humanTurn = acting && acting.style === 'human' && s.street !== 'handOver';
+  if (!humanTurn) room.deadline = null;
+  else if (!room.deadline || room.deadlineKey !== `${s.handNumber}:${s.street}:${s.actingSeat}:${s.log.length}`) {
+    room.deadlineKey = `${s.handNumber}:${s.street}:${s.actingSeat}:${s.log.length}`;
+    room.deadline = Date.now() + 30_000;
+  }
   return {
     type: 'table',
     view: toPublicView(s, p.seat),
     yourSeat: p.seat,
-    turnDeadline: acting && acting.style === 'human' && s.street !== 'handOver' ? Date.now() + 30_000 : null,
+    turnDeadline: room.deadline,
+    serverNow: Date.now(),
   };
 }
 function broadcastTable(room) {
@@ -156,7 +164,10 @@ function deal(room) {
 
 function handle(room, conn, ctx, msg) {
   const err = (code, message) => wsSend(conn, { type: 'error', code, message, requestType: msg.type });
-  if (msg.type === 'ping') return wsSend(conn, { type: 'pong', t: msg.t, serverTime: Date.now() });
+  if (msg.type === 'ping') {
+    const now = Date.now();
+    return wsSend(conn, { type: 'pong', t: msg.t, serverNow: now, serverTime: now });
+  }
   if (msg.type === 'join' || msg.type === 'create') {
     let p = msg.seatToken ? [...room.players.values()].find((x) => x.token === msg.seatToken) : null;
     if (msg.seatToken && !p) return err('badToken', 'Seat token not recognised');
@@ -200,7 +211,14 @@ function handle(room, conn, ctx, msg) {
       const s = room.state;
       if (!s || s.actingSeat !== p.seat) return err('notYourTurn', 'Not your turn');
       if (msg.handNumber != null && msg.handNumber !== s.handNumber) return err('staleHand', 'Stale hand');
-      try { room.state = runBotsUntilHuman(applyAction(s, msg.action)); }
+      // Sizing: `raiseTo` = street total (UI value) → engine wants chips added.
+      const a = msg.action ?? {};
+      const actor = s.players[s.actingSeat];
+      const engineAction =
+        (a.type === 'bet' || a.type === 'raise') && typeof a.raiseTo === 'number'
+          ? { type: a.type, amount: a.raiseTo - actor.betThisStreet }
+          : { type: a.type, ...(typeof a.amount === 'number' ? { amount: a.amount } : {}) };
+      try { room.state = runBotsUntilHuman(applyAction(s, engineAction)); }
       catch (e) { return err('illegalAction', String(e?.message ?? e)); }
       broadcastTable(room);
       if (room.state.street === 'handOver') broadcastLobby(room);

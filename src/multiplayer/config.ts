@@ -26,9 +26,18 @@ export function roomWsUrl(code: string, base = ROOM_SERVER_URL): string {
   return protoWsUrl(base, code);
 }
 
+/** Server said 429 (per-IP rate limit on create/join). */
+export class RateLimitedError extends Error {
+  constructor() {
+    super('Too many tries, wait a moment and try again.');
+    this.name = 'RateLimitedError';
+  }
+}
+
 /** `POST /api/rooms` → room code. */
 export async function createRoomCode(signal?: AbortSignal): Promise<string> {
   const res = await fetch(roomHttpUrl('/api/rooms'), { method: 'POST', signal });
+  if (res.status === 429) throw new RateLimitedError();
   if (!res.ok) throw new Error(`Create room failed (${res.status})`);
   const body = (await res.json()) as { code?: unknown };
   if (typeof body.code !== 'string' || !body.code) throw new Error('Bad create response');
@@ -42,6 +51,7 @@ export async function createRoomCode(signal?: AbortSignal): Promise<string> {
 export async function fetchRoomInfo(code: string, signal?: AbortSignal): Promise<RoomInfoResponse | null> {
   const res = await fetch(roomHttpUrl(`/api/rooms/${encodeURIComponent(code)}`), { signal });
   if (res.status === 404) return null;
+  if (res.status === 429) throw new RateLimitedError();
   if (!res.ok) throw new Error(`Room lookup failed (${res.status})`);
   const info = (await res.json()) as RoomInfoResponse;
   return info.exists ? info : null;

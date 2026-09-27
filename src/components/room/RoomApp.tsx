@@ -9,6 +9,7 @@ import {
 import { useMultiplayerTable } from '../../hooks/useMultiplayerTable';
 import { normalizeHandResult } from '../../types/handResult';
 import { WaitingRoom } from '../lobby/WaitingRoom';
+import { ACTION_TIMEOUT_MS } from '../../multiplayer/protocol';
 import '../../App.css';
 import './RoomApp.css';
 
@@ -59,7 +60,9 @@ export function RoomApp({ code, name, onExit }: RoomAppProps) {
   const acting = view.actingSeat >= 0 ? view.players[view.actingSeat] : undefined;
   const heroTurn = view.legalActions != null;
   const secsLeft =
-    mp.turnDeadline != null ? Math.max(0, Math.ceil((mp.turnDeadline - now) / 1000)) : null;
+    mp.turnDeadline != null
+      ? Math.min(ACTION_TIMEOUT_MS / 1000, Math.max(0, Math.ceil((mp.turnDeadline - now) / 1000)))
+      : null;
 
   let turnText: string;
   if (view.street === 'handOver') {

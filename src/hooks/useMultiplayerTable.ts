@@ -37,6 +37,7 @@ export interface MultiplayerTableApi extends Omit<PokerCoachApi, 'state'> {
   isHost: boolean;
   /** Your seat (null = spectator / not yet seated). */
   yourSeat: number | null;
+  /** Acting human's deadline in THIS device's epoch ms (skew-corrected via serverNow). */
   turnDeadline: number | null;
   /** Last server error (cleared on next successful lobby). */
   error: { code: ServerErrorCode | 'network'; message: string } | null;
@@ -119,6 +120,8 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
   const [lastGrade, setLastGrade] = useState<CoachGrade | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
+  /** Date.now() - serverNow from the latest table/pong (ms). */
+  const skewRef = useRef(0);
   const attemptRef = useRef(0);
   const leavingRef = useRef(false);
   const fatalRef = useRef(false);
@@ -148,11 +151,14 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
           if (msg.you?.seatToken) saveSeatToken(msg.code, msg.you.seatToken);
           if (msg.phase === 'lobby') setTableView(null);
           break;
-        case 'table':
+        case 'table': {
           setTableView(msg.view);
           setYourSeatFromTable(msg.yourSeat);
-          setTurnDeadline(msg.turnDeadline);
+          // Clock-skew fix: rebase the server deadline onto this device's clock.
+          if (typeof msg.serverNow === 'number') skewRef.current = Date.now() - msg.serverNow;
+          setTurnDeadline(msg.turnDeadline == null ? null : msg.turnDeadline + skewRef.current);
           break;
+        }
         case 'handResult':
           setLastResult({ hand: msg.handNumber, result: msg.result });
           break;
@@ -181,8 +187,12 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
         case 'playerLeft':
           pushNotice({ kind: 'left', playerId: msg.playerId, name: msg.name });
           break;
+        case 'pong': {
+          const serverNow = msg.serverNow ?? msg.serverTime;
+          if (typeof serverNow === 'number') skewRef.current = Date.now() - serverNow;
+          break;
+        }
         case 'autoAction':
-        case 'pong':
           break;
       }
     },
