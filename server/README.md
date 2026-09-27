@@ -26,6 +26,9 @@ npm run dev       # wrangler dev --local on http://localhost:8787 (no CF login n
 npm run smoke     # in another shell: 4 WS clients play a few hands
 ```
 
+Rate limits (per IP, per Worker isolate, 60s window): 10 room creates, 60 joins/room lookups → 429.
+Requests with no Origin header (curl/Node) bypass the Origin check; browsers must be listed.
+
 Client dev: `VITE_ROOM_SERVER_URL=http://localhost:8787 npm run dev` at the repo root
 (that is also the client's default).
 
@@ -35,7 +38,7 @@ Client dev: `VITE_ROOM_SERVER_URL=http://localhost:8787 npm run dev` at the repo
 cd server
 npm install
 npx wrangler login              # or: export CLOUDFLARE_API_TOKEN=... (Workers Scripts:Edit + Durable Objects)
-# optional: lock CORS to the Pages origin (edit wrangler.jsonc vars.ALLOWED_ORIGINS)
+# CORS/WS Origin allow-list lives in wrangler.jsonc vars.ALLOWED_ORIGINS (Pages + localhost:5173/4173)
 npx wrangler deploy             # creates Worker "poker-coach-rooms" + applies DO migration v1 (new_sqlite_classes: RoomDO)
 ```
 
