@@ -11,9 +11,13 @@
   background: #07090c;
   color: #e2e8f0;
   box-sizing: border-box;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  /*
+   * `clip` (not hidden/auto) so .pc-app is NOT a scroll container: the page
+   * (document) scrolls instead, and the sticky ActionBar (bottom: 0) pins to the
+   * viewport even when the open coach strip pushes content past the fold.
+   */
+  overflow-x: clip;
+  overflow-y: visible;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
@@ -70,5 +74,22 @@
 
   .pc-app__table {
     min-height: 180px;
+  }
+}
+
+/*
+ * With the ActionBar pinned to the viewport, an expanded coach strip (e.g. "More")
+ * would push the hero's hole cards under the bar at scrollTop 0. Cap the open
+ * strip so felt + hero cards always fit above the bar; extra coach text scrolls
+ * inside .pc-coach__body (overflow-y: auto). Reserve = tools + table down to the
+ * hero cards + ActionBar, measured at 390×844 / 375×667 (see solo-fold checks).
+ */
+.pc-app .pc-coach--open {
+  max-height: max(140px, min(48vh, 320px, calc(100svh - 620px)));
+}
+
+@media (max-height: 700px) {
+  .pc-app .pc-coach--open {
+    max-height: max(120px, min(48vh, 320px, calc(100svh - 468px)));
   }
 }

@@ -148,14 +148,3 @@
   }
 }
 
-/*
- * Room mode: the 30s action clock means the ActionBar must stay reachable
- * without scrolling. `.pc-app`'s overflow-y:auto makes it the sticky scroller,
- * so when the coach strip is open the bar ends up below the fold. `clip` (not
- * `hidden`) avoids creating a scroll container, so `position: sticky; bottom: 0`
- * pins the bar to the viewport while the page scrolls.
- */
-.pc-app--room {
-  overflow-x: clip;
-  overflow-y: visible;
-}
