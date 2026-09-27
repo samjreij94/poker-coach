@@ -37,6 +37,8 @@ export interface GameState {
   heroSeat: number;
   /** Injectable RNG (default Math.random) */
   rng: () => number;
+  /** Seats that chopped at least one pot in the last showdown (for per-viewer HandResult). */
+  splitSeats?: number[];
 }
 
 export interface PublicTableView {
@@ -129,11 +131,46 @@ const BOT_STYLES: PlayerState['style'][] = [
   'callingStation',
 ];
 
-function makePlayers(config: GameConfig, heroSeat: number): PlayerState[] {
+/** Bot identity used when a seat is (re)filled by a bot in multi-human tables. */
+export function botIdentityForSeat(seat: number): { name: string; style: PlayerState['style'] } {
+  const i = ((seat % BOT_NAMES.length) + BOT_NAMES.length) % BOT_NAMES.length;
+  return { name: BOT_NAMES[i]!, style: BOT_STYLES[i]! };
+}
+
+/** A seat controlled by a person (solo hero or any multiplayer human). */
+export function isHumanPlayer(p: PlayerState): boolean {
+  return p.isHero || p.style === 'human';
+}
+
+function makePlayers(
+  config: GameConfig,
+  heroSeat: number,
+  humanSeats?: number[],
+  names?: Partial<Record<number, string>>,
+): PlayerState[] {
   const players: PlayerState[] = [];
   let botIdx = 0;
   for (let seat = 0; seat < config.seats; seat++) {
     const isHero = seat === heroSeat;
+    if (humanSeats) {
+      // Multi-human table: listed seats are humans, the rest are bots.
+      const human = humanSeats.includes(seat);
+      const bot = botIdentityForSeat(seat);
+      players.push({
+        id: seat,
+        name: names?.[seat] ?? (human ? `Player ${seat + 1}` : bot.name),
+        style: human ? 'human' : bot.style,
+        stack: config.startingStack,
+        holeCards: [],
+        betThisStreet: 0,
+        totalInvested: 0,
+        folded: false,
+        allIn: false,
+        isHero: human && isHero,
+        seat,
+      });
+      continue;
+    }
     players.push({
       id: seat,
       name: isHero ? 'You' : BOT_NAMES[botIdx]!,
@@ -154,6 +191,13 @@ function makePlayers(config: GameConfig, heroSeat: number): PlayerState[] {
 export interface CreateTableOptions {
   heroSeat?: number;
   rng?: () => number;
+  /**
+   * Multi-human table: these seats are humans (style 'human'); every other
+   * seat is filled by a bot. Omit for classic solo (hero + 5 bots).
+   */
+  humanSeats?: number[];
+  /** Display names per seat (multi-human tables). */
+  names?: Partial<Record<number, string>>;
 }
 
 export function createInitialState(
@@ -165,10 +209,10 @@ export function createInitialState(
     typeof heroSeatOrOpts === 'number'
       ? { heroSeat: heroSeatOrOpts }
       : heroSeatOrOpts;
-  const heroSeat = opts.heroSeat ?? 3;
+  const heroSeat = opts.heroSeat ?? opts.humanSeats?.[0] ?? 3;
   return {
     config: merged,
-    players: makePlayers(merged, heroSeat),
+    players: makePlayers(merged, heroSeat, opts.humanSeats, opts.names),
     board: [],
     deck: [],
     street: 'handOver',
@@ -248,7 +292,7 @@ function cloneHandResult(hr: HandResult | null): HandResult | null {
   };
 }
 
-function cloneState(state: GameState): GameState {
+export function cloneState(state: GameState): GameState {
   return {
     ...state,
     players: state.players.map((p) => ({ ...p, holeCards: [...p.holeCards] })),
@@ -257,6 +301,7 @@ function cloneState(state: GameState): GameState {
     pots: state.pots.map((p) => ({ ...p, eligible: [...p.eligible] })),
     winners: [...state.winners],
     handResult: cloneHandResult(state.handResult),
+    splitSeats: state.splitSeats ? [...state.splitSeats] : undefined,
     log: [...state.log],
     actedThisRound: [...state.actedThisRound],
     config: { ...state.config },
@@ -278,6 +323,7 @@ export function startHand(state: GameState, rng?: () => number): GameState {
   next.board = [];
   next.winners = [];
   next.handResult = null;
+  next.splitSeats = undefined;
   next.pots = [];
   next.log = [];
   next.handNumber = state.handNumber + 1;
@@ -565,6 +611,7 @@ function awardPots(state: GameState): GameState {
 
   const bySeat = new Map<number, HandResultWinner>();
   let heroChopped = false;
+  const splitSeats = new Set<number>();
 
   for (const pot of state.pots) {
     const elig = pot.eligible
@@ -588,6 +635,9 @@ function awardPots(state: GameState): GameState {
       potWinners.some((p) => p.seat === state.heroSeat)
     ) {
       heroChopped = true;
+    }
+    if (potWinners.length > 1) {
+      for (const w of potWinners) splitSeats.add(w.seat);
     }
     const share = Math.floor(pot.amount / potWinners.length);
     let remainder = pot.amount - share * potWinners.length;
@@ -623,6 +673,7 @@ function awardPots(state: GameState): GameState {
   }
 
   const sdWinners = [...bySeat.values()];
+  state.splitSeats = [...splitSeats];
   const heroOutcome = heroOutcomeFromWinners(
     sdWinners,
     state.heroSeat,
@@ -775,14 +826,17 @@ export function applyAction(state: GameState, action: PlayerAction): GameState {
   return next;
 }
 
-/** Auto-play bot seats until hero must act or hand ends. */
-export function runBotsUntilHero(state: GameState): GameState {
+/**
+ * Auto-play bot seats until ANY human seat (solo hero or multiplayer human,
+ * see isHumanPlayer) must act, or the hand ends.
+ */
+export function runBotsUntilHuman(state: GameState): GameState {
   let s = state;
   let guard = 0;
   while (
     s.actingSeat >= 0 &&
     s.street !== 'handOver' &&
-    !s.players[s.actingSeat]!.isHero &&
+    !isHumanPlayer(s.players[s.actingSeat]!) &&
     guard++ < 200
   ) {
     const actor = s.players[s.actingSeat]!;
@@ -812,6 +866,110 @@ export function runBotsUntilHero(state: GameState): GameState {
     }
   }
   return s;
+}
+
+/** Solo alias: auto-play bots until hero must act or hand ends. */
+export function runBotsUntilHero(state: GameState): GameState {
+  return runBotsUntilHuman(state);
+}
+
+/** True when the acting seat is a human waiting for input. */
+export function isHumanToAct(state: GameState): boolean {
+  return (
+    state.actingSeat >= 0 &&
+    state.street !== 'handOver' &&
+    isHumanPlayer(state.players[state.actingSeat]!)
+  );
+}
+
+/** Action for an afk / disconnected human: check if legal, else fold. */
+export function timeoutAction(state: GameState): PlayerAction {
+  const legal = getLegalActions(state);
+  if (legal?.canCheck) return { type: 'check' };
+  return { type: 'fold' };
+}
+
+/**
+ * Validate an action against getLegalActions for the acting seat.
+ * Returns an error string, or null when the action is legal.
+ * (applyAction still performs its own checks.)
+ */
+export function validateAction(state: GameState, action: PlayerAction): string | null {
+  const legal = getLegalActions(state);
+  if (!legal) return 'No player to act';
+  const actor = state.players[state.actingSeat]!;
+  const amt = action.amount;
+  const hasAmt = typeof amt === 'number' && Number.isFinite(amt);
+  switch (action.type) {
+    case 'fold':
+      return legal.canFold ? null : 'Cannot fold facing no bet (check instead)';
+    case 'check':
+      return legal.canCheck ? null : 'Cannot check facing a bet';
+    case 'call':
+      // Short all-in call is expressed as call too (callAmount capped at stack)
+      return legal.callAmount > 0 ? null : 'Nothing to call (check instead)';
+    case 'allin':
+      return legal.maxBet > 0 ? null : 'No chips to put in';
+    case 'bet': {
+      if (!legal.canBet) return 'Cannot bet facing a bet (raise instead)';
+      if (!hasAmt || !Number.isInteger(amt)) return 'Bet needs a whole-chip amount';
+      if (amt > legal.maxBet) return 'Cannot bet more than stack';
+      if (amt < legal.minBet && amt !== legal.maxBet) return `Min bet is $${legal.minBet}`;
+      return null;
+    }
+    case 'raise': {
+      if (!legal.canRaise) return 'Cannot raise here';
+      if (!hasAmt || !Number.isInteger(amt)) return 'Raise needs a whole-chip amount';
+      if (amt > actor.stack) return 'Cannot bet more than stack';
+      const minPut = legal.minRaiseTo - actor.betThisStreet;
+      if (amt < minPut && amt !== actor.stack) {
+        return `Min raise is to $${legal.minRaiseTo}`;
+      }
+      return null;
+    }
+    default:
+      return 'Unknown action type';
+  }
+}
+
+/**
+ * Between hands: make a seat human (with name) or hand it to a bot.
+ * Stack is preserved. Throws if a hand is in progress.
+ */
+export function setSeatOccupant(
+  state: GameState,
+  seat: number,
+  occupant: { kind: 'human'; name: string } | { kind: 'bot' },
+): GameState {
+  if (state.street !== 'handOver') {
+    throw new IllegalActionError('Cannot change seats during a hand');
+  }
+  const next = cloneState(state);
+  const p = next.players[seat];
+  if (!p) throw new IllegalActionError(`No seat ${seat}`);
+  if (occupant.kind === 'human') {
+    p.style = 'human';
+    p.name = occupant.name;
+  } else {
+    const bot = botIdentityForSeat(seat);
+    p.style = bot.style;
+    p.name = bot.name;
+    p.isHero = false;
+  }
+  return next;
+}
+
+/** Between hands: refill any busted stack back to config.startingStack. */
+export function topUpBustedStacks(state: GameState): GameState {
+  if (!state.players.some((p) => p.stack <= 0)) return state;
+  const next = cloneState(state);
+  for (const p of next.players) {
+    if (p.stack <= 0) {
+      p.stack = next.config.startingStack;
+      next.log.push(`${p.name} rebuys for $${next.config.startingStack}`);
+    }
+  }
+  return next;
 }
 
 /**
@@ -928,13 +1086,49 @@ export function getLegalActions(state: GameState): LegalActions | null {
   };
 }
 
-export function toPublicView(state: GameState, revealAll = false): PublicTableView {
+function handResultForViewer(state: GameState, viewerSeat: number): HandResult | null {
+  const hr = state.handResult;
+  if (!hr || viewerSeat === state.heroSeat) return hr;
+  const chopped = (state.splitSeats ?? []).includes(viewerSeat);
+  const heroOutcome = heroOutcomeFromWinners(hr.winners, viewerSeat, chopped);
+  return {
+    ...hr,
+    heroOutcome,
+    winners: hr.winners.map((w) =>
+      hr.kind === 'showdown' ? w : { seat: w.seat, name: w.name, amountWon: w.amountWon },
+    ),
+    why: buildWhy(hr.kind, heroOutcome, hr.winners, viewerSeat),
+  };
+}
+
+/**
+ * Seat-filtered public view.
+ *
+ * - `viewerSeat` omitted: classic solo view for `state.heroSeat` (unchanged
+ *   legacy behaviour, including revealing an uncontested winner's cards).
+ * - `viewerSeat` = a seat number: that seat's own hole cards only, plus every
+ *   non-folded player's cards once a showdown hand is over. `isHero` marks the
+ *   viewer's seat; `legalActions` only when the viewer is to act; `handResult`
+ *   `heroOutcome`/`why` are relative to the viewer.
+ * - `viewerSeat` = null or -1: spectator — no hole cards until showdown,
+ *   `heroSeat` = -1, never `legalActions`.
+ */
+export function toPublicView(
+  state: GameState,
+  viewerSeat?: number | null,
+): PublicTableView {
+  const legacy = viewerSeat === undefined;
+  const viewer = legacy ? state.heroSeat : viewerSeat === null ? -1 : viewerSeat;
   const pot = streetPot(state);
-  const hero = state.actingSeat >= 0 ? state.players[state.actingSeat] : undefined;
+  const acting = state.actingSeat >= 0 ? state.players[state.actingSeat] : undefined;
   const callAmt =
     state.actingSeat >= 0
       ? Math.max(0, state.currentBet - state.players[state.actingSeat]!.betThisStreet)
       : 0;
+  const showdownOver =
+    state.street === 'handOver' &&
+    state.winners.length > 0 &&
+    (legacy || state.handResult?.kind === 'showdown');
 
   return {
     street: state.street,
@@ -948,16 +1142,16 @@ export function toPublicView(state: GameState, revealAll = false): PublicTableVi
     buttonSeat: state.buttonSeat,
     handNumber: state.handNumber,
     winners: state.winners,
-    handResult: state.handResult,
+    handResult: legacy ? state.handResult : handResultForViewer(state, viewer),
     log: state.log.slice(-12),
-    heroSeat: state.heroSeat,
+    heroSeat: viewer,
     legalActions:
-      state.actingSeat >= 0 && hero?.isHero ? getLegalActions(state) : null,
+      acting && viewer >= 0 && acting.seat === viewer && (legacy ? acting.isHero : true)
+        ? getLegalActions(state)
+        : null,
     players: state.players.map((p) => {
-      const showCards =
-        p.isHero ||
-        revealAll ||
-        (state.street === 'handOver' && !p.folded && state.winners.length > 0);
+      const mine = legacy ? p.isHero : p.seat === viewer;
+      const showCards = mine || (showdownOver && !p.folded);
       return {
         id: p.id,
         name: p.name,
@@ -966,7 +1160,7 @@ export function toPublicView(state: GameState, revealAll = false): PublicTableVi
         betThisStreet: p.betThisStreet,
         folded: p.folded,
         allIn: p.allIn,
-        isHero: p.isHero,
+        isHero: legacy ? p.isHero : p.seat === viewer,
         seat: p.seat,
         position: positionForSeat(p.seat, state.buttonSeat, state.config.seats),
         holeCards: showCards ? p.holeCards : null,
