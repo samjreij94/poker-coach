@@ -385,3 +385,54 @@ describe('Room: hands, validation, reconnect, timers', () => {
     expect(r2.isExpired(h.clock.t + ROOM_IDLE_EXPIRY_MS)).toBe(true);
   });
 });
+
+describe('Room: raiseTo sizing + serverNow', () => {
+  it('action { raiseTo: N } ends with the player street bet == N (incl. chips already in)', () => {
+    let checked = 0;
+    for (let seed = 1; seed < 30 && checked < 3; seed++) {
+      const { h, conns } = setup4(seed);
+      h.send('c0', { type: 'start' });
+      for (let i = 0; i < 200 && h.room.phase === 'inHand'; i++) {
+        const g = h.room.game!;
+        const c = connForSeat(h, conns, g.actingSeat)!;
+        const t = h.last(c, 'table')!;
+        const legal = t.view.legalActions!;
+        expect(legal).not.toBeNull();
+        const me = g.players[g.actingSeat]!;
+        if (legal.canRaise && (legal.betThisStreet ?? 0) > 0 && legal.minRaiseTo < legal.allInTo!) {
+          const to = legal.quickSizes[0]?.amount ?? legal.minRaiseTo;
+          const line = `${me.name} raises to $${to}`;
+          const before = h.room.game!.log.filter((l) => l === line).length;
+          h.send(c, { type: 'action', action: { type: 'raise', raiseTo: to }, handNumber: t.view.handNumber });
+          expect(h.last(c, 'error')).toBeUndefined();
+          expect(h.room.game!.log.filter((l) => l === line).length).toBe(before + 1);
+          checked++;
+          break;
+        }
+        h.send(c, {
+          type: 'action',
+          action: legal.canCheck ? { type: 'check' } : { type: 'call' },
+        });
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('bad raiseTo rejected; table and pong carry serverNow', () => {
+    const { h, conns } = setup4(4);
+    h.send('c0', { type: 'start' });
+    const g = h.room.game!;
+    const c = connForSeat(h, conns, g.actingSeat)!;
+    const t = h.last(c, 'table')!;
+    expect(t.serverNow).toBe(h.clock.t);
+    h.send(c, { type: 'action', action: { type: 'raise', raiseTo: t.view.legalActions!.minRaiseTo - 1 } });
+    expect(h.last(c, 'error')!.code).toBe('illegalAction');
+    h.send(c, { type: 'action', action: { type: 'raise', raiseTo: 'x' as never } });
+    expect(h.last(c, 'error')!.code).toBe('badMessage');
+    h.clock.t += 5;
+    h.send(c, { type: 'ping', t: 1 });
+    const pong = h.last(c, 'pong')!;
+    expect(pong.serverNow).toBe(h.clock.t);
+    expect(pong.t).toBe(1);
+  });
+});

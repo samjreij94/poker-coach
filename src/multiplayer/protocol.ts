@@ -99,9 +99,17 @@ export function roomWsUrl(base: string, code: string): string {
 
 // ───────────────────────────── Client → Server ─────────────────────────────
 
+/**
+ * Bet/raise sizing — send exactly ONE of:
+ *  - `raiseTo` (preferred; what the UI shows): your street total after the
+ *    action, e.g. LegalActions.minRaiseTo / minBet / quickSizes[].amount.
+ *  - `amount` (engine convention): chips ADDED on this action.
+ * The server converts `raiseTo` using its authoritative state. Both are
+ * ignored for fold/check/call/allin.
+ */
 export interface ClientAction {
   type: ActionType;
-  /** Required for bet/raise (chips put in this action). Ignored for fold/check/call/allin. */
+  raiseTo?: number;
   amount?: number;
 }
 
@@ -212,6 +220,11 @@ export interface TableMessage {
   yourSeat: number | null;
   /** Epoch ms (server clock) when the acting human is auto-checked/folded; null if bot/none. */
   turnDeadline: number | null;
+  /**
+   * Server epoch ms when this frame was built. Clock-skew fix:
+   * localDeadline = turnDeadline - serverNow + Date.now() (at receipt).
+   */
+  serverNow: number;
 }
 
 export type ServerErrorCode =
@@ -248,7 +261,8 @@ export type ServerMessage =
       action: ClientAction;
       reason: 'timeout' | 'disconnected' | 'left';
     }
-  | { type: 'pong'; t?: number; serverTime: number };
+  /** `t` echoes the ping; `serverNow` = server epoch ms (`serverTime` is a deprecated alias). */
+  | { type: 'pong'; t?: number; serverNow: number; serverTime: number };
 
 export type ServerMessageType = ServerMessage['type'];
 

@@ -8,6 +8,7 @@ import {
   createInitialState,
   IllegalActionError,
   isHumanToAct,
+  raiseToToAmount,
   runBotsUntilHuman,
   setSeatOccupant,
   startHand,
@@ -26,6 +27,7 @@ import {
   ROOM_IDLE_EXPIRY_MS,
   normalizeRoomCode,
   parseMessage,
+  type ClientAction,
   type ClientMessage,
   type ClientMessageType,
   type LobbySeat,
@@ -251,7 +253,10 @@ export class Room {
     if (!this.conns.has(connId)) this.connect(connId);
     switch (msg.type) {
       case 'ping':
-        this.send(connId, { type: 'pong', t: typeof msg.t === 'number' ? msg.t : undefined, serverTime: this.deps.now() });
+        {
+          const now = this.deps.now();
+          this.send(connId, { type: 'pong', t: typeof msg.t === 'number' ? msg.t : undefined, serverNow: now, serverTime: now });
+        }
         return;
       case 'create':
         if (this.created) {
@@ -463,9 +468,20 @@ export class Room {
       this.error(connId, 'badMessage', 'action must be { type, amount? }', 'action');
       return;
     }
-    const raw = a as PlayerAction;
-    const action: PlayerAction =
-      raw.type === 'bet' || raw.type === 'raise' ? { type: raw.type, amount: raw.amount } : { type: raw.type };
+    const raw = a as ClientAction;
+    let action: PlayerAction = { type: raw.type };
+    if (raw.type === 'bet' || raw.type === 'raise') {
+      if (raw.raiseTo != null) {
+        if (typeof raw.raiseTo !== 'number' || !Number.isFinite(raw.raiseTo)) {
+          this.error(connId, 'badMessage', 'raiseTo must be a number', 'action');
+          return;
+        }
+        // UI convention: street total -> engine chips added
+        action = { type: raw.type, amount: raiseToToAmount(g, raw.raiseTo) };
+      } else {
+        action = { type: raw.type, amount: raw.amount };
+      }
+    }
     const why = validateAction(g, action);
     if (why) {
       this.error(connId, 'illegalAction', why, 'action');
@@ -639,7 +655,7 @@ export class Room {
       view.heroSeat = p.seat;
       view.players = view.players.map((pl) => ({ ...pl, isHero: pl.seat === p.seat }));
     }
-    return { type: 'table', view, yourSeat, turnDeadline: this.turnDeadline };
+    return { type: 'table', view, yourSeat, turnDeadline: this.turnDeadline, serverNow: this.deps.now() };
   }
 
   private sendState(connId: string): void {
