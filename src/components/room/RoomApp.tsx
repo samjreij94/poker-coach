@@ -65,7 +65,9 @@ export function RoomApp({ code, name, onExit }: RoomAppProps) {
   if (view.street === 'handOver') {
     turnText = mp.isHost ? 'Hand over — deal the next one' : 'Waiting for host to deal…';
   } else if (acting && acting.seat !== heroSeat) {
-    turnText = `Waiting for ${acting.name}…`;
+    const seatInfo = mp.lobby?.seats[acting.seat];
+    const away = seatInfo?.kind === 'human' && seatInfo.connected === false;
+    turnText = away ? `Waiting for ${acting.name} (disconnected)…` : `Waiting for ${acting.name}…`;
   } else {
     turnText = 'Waiting…';
   }

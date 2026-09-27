@@ -51,6 +51,8 @@ export interface MultiplayerTableApi extends Omit<PokerCoachApi, 'state'> {
 }
 
 const PING_MS = 25_000;
+/** No frame (incl. pong) for this long → treat socket as dead (half-open on iOS sleep). */
+const STALE_MS = 2 * PING_MS + 5_000;
 const BACKOFF_BASE_MS = 500;
 const BACKOFF_MAX_MS = 10_000;
 
@@ -227,6 +229,7 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
     }
     wsRef.current = ws;
     let ping: ReturnType<typeof setInterval> | null = null;
+    let lastSeen = Date.now();
 
     ws.onopen = () => {
       setStatus('open');
@@ -240,17 +243,24 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
         } satisfies ClientMessage),
       );
       ping = setInterval(() => {
+        if (Date.now() - lastSeen > STALE_MS) {
+          dropRef.current();
+          return;
+        }
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'ping', t: Date.now() } satisfies ClientMessage));
         }
       }, PING_MS);
     };
     ws.onmessage = (ev) => {
+      lastSeen = Date.now();
       const msg = parseMessage<ServerMessage>(ev.data);
       if (msg) onMessageRef.current(msg);
     };
-    ws.onclose = () => {
+    ws.addEventListener('close', () => {
       if (ping) clearInterval(ping);
+    });
+    ws.onclose = () => {
       if (wsRef.current !== ws) return;
       wsRef.current = null;
       if (leavingRef.current || fatalRef.current) {
@@ -269,6 +279,26 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
     connectRef.current = connect;
   }, [connect]);
 
+  /** Abandon the current socket now (network gone / stale) and start reconnecting. */
+  const drop = useCallback(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    wsRef.current = null;
+    ws.onclose = null;
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    if (leavingRef.current || fatalRef.current) return;
+    setStatus('reconnecting');
+    scheduleReconnect();
+  }, [scheduleReconnect]);
+  const dropRef = useRef(drop);
+  useEffect(() => {
+    dropRef.current = drop;
+  }, [drop]);
+
   useEffect(() => {
     leavingRef.current = false;
     fatalRef.current = false;
@@ -281,10 +311,13 @@ export function useMultiplayerTable(code: string, name: string): MultiplayerTabl
         connectRef.current();
       }
     };
+    const offline = () => dropRef.current();
     window.addEventListener('online', wake);
+    window.addEventListener('offline', offline);
     document.addEventListener('visibilitychange', wake);
     return () => {
       window.removeEventListener('online', wake);
+      window.removeEventListener('offline', offline);
       document.removeEventListener('visibilitychange', wake);
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       leavingRef.current = true;
