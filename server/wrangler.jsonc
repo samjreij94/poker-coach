@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "poker-coach-rooms",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "RoomDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO"] }],
+  "vars": {
+    // Comma-separated list, e.g. "https://samjreij94.github.io,http://localhost:5173"
+    "ALLOWED_ORIGINS": "*"
+  },
+  "observability": { "enabled": true }
+}
