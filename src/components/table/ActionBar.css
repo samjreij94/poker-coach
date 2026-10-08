@@ -118,7 +118,8 @@
   }
 
   .pc-actions__size {
-    min-height: 40px;
+    /* Quick sizes stay ≥44px on short iPhones too */
+    min-height: 44px;
     font-size: 0.7rem;
   }
 }

@@ -16,8 +16,14 @@
   min-height: 36px;
 }
 
+/*
+ * Collapsed = handle only. No fixed max-height: the box must grow with the
+ * safe-area top padding (59px on iPhone 18 Pro), otherwise the handle overflows
+ * the strip and (z-index 20) sits on top of the tools row, eating the Coach /
+ * Leave buttons' tap area.
+ */
 .pc-coach--collapsed {
-  max-height: 40px;
+  overflow: hidden;
 }
 
 .pc-coach--open {

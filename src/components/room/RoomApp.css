@@ -77,7 +77,8 @@
 .pc-app__room-code {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  /* Same height as the 44px tool buttons beside it */
+  min-height: 44px;
   padding: 0 10px;
   border-radius: 999px;
   font-family: var(--mono);
@@ -141,10 +142,3 @@
   font-weight: 700;
   cursor: pointer;
 }
-
-@media (max-height: 700px) {
-  .pc-app__room-code {
-    min-height: 32px;
-  }
-}
-
