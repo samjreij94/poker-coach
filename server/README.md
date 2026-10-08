@@ -32,7 +32,15 @@ Requests with no Origin header (curl/Node) bypass the Origin check; browsers mus
 Client dev: `VITE_ROOM_SERVER_URL=http://localhost:8787 npm run dev` at the repo root
 (that is also the client's default).
 
-## Deploy (not done yet — needs a Cloudflare account)
+## Live
+
+Deployed 2026-10-08 to Samir's Cloudflare account (workers.dev subdomain `samjreij94`):
+**https://poker-coach-rooms.samjreij94.workers.dev** (`/health`; WebSocket at `wss://…/room/:code`). The production
+client build reads it from `/.env.production` (`VITE_ROOM_SERVER_URL`, https; ws(s) is derived), so a plain
+`npm run build` / `npm run deploy` at the repo root targets it. Redeploy with `cd server && npx wrangler deploy` (Node 22).
+Live smoke: `ROOM_SERVER_URL=https://poker-coach-rooms.samjreij94.workers.dev ORIGIN=https://samjreij94.github.io npm run smoke`.
+
+## Deploy (needs a Cloudflare account)
 
 ```bash
 cd server
