@@ -8,6 +8,11 @@ import './HandResultSplash.css';
 interface HandResultSplashProps {
   result: UiHandResult;
   onNextHand: () => void;
+  /**
+   * Solo hero has no chips left: replace "Next Hand" with a way back in.
+   * `onRebuy` refills and deals; `onReset` resets every stack.
+   */
+  outOfChips?: { onRebuy: () => void; onReset: () => void; rebuyLabel?: string };
 }
 
 const OUTCOME_LABEL: Record<UiHandResult['heroOutcome'], string> = {
@@ -19,7 +24,7 @@ const OUTCOME_LABEL: Record<UiHandResult['heroOutcome'], string> = {
 /**
  * Full-screen hand-over splash — bind to normalized view.handResult only.
  */
-export function HandResultSplash({ result, onNextHand }: HandResultSplashProps) {
+export function HandResultSplash({ result, onNextHand, outOfChips }: HandResultSplashProps) {
   const { heroOutcome, potTotal, why, winners, board, kind } = result;
   const outcomeWord = OUTCOME_LABEL[heroOutcome];
 
@@ -45,7 +50,7 @@ export function HandResultSplash({ result, onNextHand }: HandResultSplashProps) 
       role="dialog"
       aria-modal="true"
       aria-label={`Hand result: ${outcomeWord}`}
-      onClick={onNextHand}
+      onClick={outOfChips ? undefined : onNextHand}
     >
       <div
         className={`pc-hand-splash__panel pc-hand-splash__panel--${heroOutcome}`}
@@ -87,13 +92,35 @@ export function HandResultSplash({ result, onNextHand }: HandResultSplashProps) 
           </div>
         ) : null}
 
-        <button
-          type="button"
-          className="pc-hand-splash__cta"
-          onClick={onNextHand}
-        >
-          Next Hand
-        </button>
+        {outOfChips ? (
+          <>
+            <p className="pc-hand-splash__bust" role="status">
+              You're out of chips.
+            </p>
+            <button
+              type="button"
+              className="pc-hand-splash__cta"
+              onClick={outOfChips.onRebuy}
+            >
+              {outOfChips.rebuyLabel ?? 'Rebuy & deal'}
+            </button>
+            <button
+              type="button"
+              className="pc-hand-splash__cta pc-hand-splash__cta--secondary"
+              onClick={outOfChips.onReset}
+            >
+              Reset all stacks
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="pc-hand-splash__cta"
+            onClick={onNextHand}
+          >
+            Next Hand
+          </button>
+        )}
       </div>
     </div>
   );

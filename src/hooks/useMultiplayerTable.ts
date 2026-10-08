@@ -28,7 +28,9 @@ export interface RoomNotice {
   at: number;
 }
 
-export interface MultiplayerTableApi extends Omit<PokerCoachApi, 'state'> {
+// heroBusted/rebuy are solo-only: the room server tops up busted stacks itself.
+export interface MultiplayerTableApi
+  extends Omit<PokerCoachApi, 'state' | 'heroBusted' | 'rebuy'> {
   /** True once the server has pushed a real `table` for this room. */
   hasTable: boolean;
   status: ConnStatus;

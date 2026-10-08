@@ -601,7 +601,30 @@ function heroOutcomeFromWinners(
   return 'win';
 }
 
+/**
+ * Return the top contributor's unmatched (uncalled) chips to their stack
+ * before pots are built, so they are never counted as winnings. Chip totals
+ * are unchanged; only what lands in a pot (and so `amountWon`) shrinks.
+ * Returns the chips given back (0 if every chip was called).
+ */
+export function returnUncalledChips(state: GameState): number {
+  const invested = state.players
+    .filter((p) => p.totalInvested > 0)
+    .sort((a, b) => b.totalInvested - a.totalInvested);
+  const top = invested[0];
+  if (!top) return 0;
+  const excess = top.totalInvested - (invested[1]?.totalInvested ?? 0);
+  if (excess <= 0) return 0;
+  top.totalInvested -= excess;
+  top.betThisStreet = Math.max(0, top.betThisStreet - excess);
+  top.stack += excess;
+  state.log.push(`Uncalled $${excess} returned to ${top.name}`);
+  return excess;
+}
+
 function awardPots(state: GameState): GameState {
+  // Uncalled chips go back first: "wins $X" is only what was won from others.
+  returnUncalledChips(state);
   state.pots = buildPots(state.players);
   state.winners = [];
   state.actingSeat = -1;
@@ -894,6 +917,7 @@ export function runBotsUntilHuman(state: GameState): GameState {
       minRaise: s.minRaise,
       buttonSeat: s.buttonSeat,
       currentBet: s.currentBet,
+      bigBlind: s.config.bigBlind,
     });
     try {
       s = applyAction(s, action);
@@ -1002,6 +1026,16 @@ export function setSeatOccupant(
   return next;
 }
 
+/**
+ * Solo: the hand is over and the hero has no chips left. The UI should offer a
+ * rebuy / reset instead of dealing the hero out of every following hand.
+ */
+export function isHeroBusted(state: GameState): boolean {
+  if (state.street !== 'handOver') return false;
+  const hero = state.players[state.heroSeat];
+  return !!hero && hero.isHero && hero.stack <= 0;
+}
+
 /** Between hands: refill any busted stack back to config.startingStack. */
 export function topUpBustedStacks(state: GameState): GameState {
   if (!state.players.some((p) => p.stack <= 0)) return state;
@@ -1038,6 +1072,7 @@ export function runHandWithBots(state: GameState): GameState {
       minRaise: s.minRaise,
       buttonSeat: s.buttonSeat,
       currentBet: s.currentBet,
+      bigBlind: s.config.bigBlind,
     });
     try {
       s = applyAction(s, action);

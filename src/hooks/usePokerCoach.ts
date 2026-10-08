@@ -8,11 +8,13 @@ import {
   getLegalActions,
   heroActionToPlayerAction,
   IllegalActionError,
+  isHeroBusted,
   resetStacks,
   runBotsUntilHero,
   startHand,
   streetPot,
   toPublicView,
+  topUpBustedStacks,
   type GameState,
   type HeroActionInput,
   type PublicTableView,
@@ -27,9 +29,16 @@ export interface PokerCoachApi {
   lastGrade: CoachGrade | null;
   coachEnabled: boolean;
   setCoachEnabled: (on: boolean) => void;
-  /** Start / deal next hand (runs bots until hero acts) */
+  /**
+   * Start / deal next hand (runs bots until hero acts). No-op while the hero
+   * is busted: offer `rebuy` / `resetStacks` instead (see `heroBusted`).
+   */
   newHand: () => void;
   resetStacks: () => void;
+  /** Hand over and the hero has no chips: show the out-of-chips prompt. */
+  heroBusted: boolean;
+  /** While busted: refill busted stacks (hero included) to the starting stack and deal. */
+  rebuy: () => void;
   /**
    * Hero action — applies, grades, then runs bots.
    * bet/raise `amount` = street total ("raise to"), exactly as LegalActions
@@ -79,8 +88,18 @@ export function usePokerCoach(heroSeat = 3): PokerCoachApi {
 
   const newHand = useCallback(() => {
     setLastGrade(null);
-    setState((s) => runBotsUntilHero(startHand(s)));
+    // A busted hero would just be dealt out of every hand; wait for a rebuy.
+    setState((s) => (isHeroBusted(s) ? s : runBotsUntilHero(startHand(s))));
   }, []);
+
+  const rebuy = useCallback(() => {
+    setLastGrade(null);
+    setState((s) =>
+      isHeroBusted(s) ? runBotsUntilHero(startHand(topUpBustedStacks(s))) : s,
+    );
+  }, []);
+
+  const heroBusted = useMemo(() => isHeroBusted(state), [state]);
 
   const doResetStacks = useCallback(() => {
     setLastGrade(null);
@@ -139,6 +158,8 @@ export function usePokerCoach(heroSeat = 3): PokerCoachApi {
     setCoachEnabled,
     newHand,
     resetStacks: doResetStacks,
+    heroBusted,
+    rebuy,
     heroAct,
     state,
   };
